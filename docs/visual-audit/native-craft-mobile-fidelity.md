@@ -7,9 +7,7 @@
 
 ## Audit Method
 
-Ten frames were extracted from the recording in this audit run and inspected individually. The recording is authoritative; generated mockups and written assumptions are subordinate. Each state below maps to a concrete implementation task and measurable capture gate.
-
-![Recording evidence contact sheet](evidence/contact-sheet.png)
+Ten frames were extracted from the recording in this audit run and inspected individually. The recording is authoritative; generated mockups and written assumptions are subordinate. The source frames are deliberately not included in this public repository because they contain user-provided Craft campaign imagery. Each state below maps to a concrete implementation task and measurable capture gate.
 
 ## Source Measurements and Invariants
 
@@ -30,7 +28,7 @@ Ten frames were extracted from the recording in this audit run and inspected ind
 
 **Health:** Plan-aligned; runtime capture pending.
 
-![Generation reference](evidence/vn-generation.png)
+Private source frame: `vn-generation.png`.
 
 Observed:
 
@@ -57,7 +55,7 @@ Acceptance:
 
 **Health:** Plan-aligned; runtime capture pending.
 
-![Overview reference](evidence/right-overview.png)
+Private source frame: `right-overview.png`.
 
 Observed:
 
@@ -83,7 +81,7 @@ Acceptance:
 
 **Health:** Plan-aligned; assistant data policy requires implementation validation.
 
-![Assistant reference](evidence/right-assistant.png)
+Private source frame: `right-assistant.png`.
 
 Observed:
 
@@ -108,7 +106,7 @@ Acceptance:
 
 **Health:** Plan-aligned; runtime capture pending.
 
-![Files reference](evidence/left-files.png)
+Private source frame: `left-files.png`.
 
 Observed:
 
@@ -133,7 +131,7 @@ Acceptance:
 
 **Health:** Plan-aligned; keyboard avoidance must be verified on device.
 
-![Search reference](evidence/left-search.png)
+Private source frame: `left-search.png`.
 
 Observed:
 
@@ -157,7 +155,7 @@ Acceptance:
 
 **Health:** Plan-aligned; runtime typography/crop pending.
 
-![Title beat reference](evidence/vn-title.png)
+Private source frame: `vn-title.png`.
 
 Observed:
 
@@ -181,7 +179,7 @@ Acceptance:
 
 **Health:** Plan-aligned; runtime typography/cutout pending.
 
-![Dialogue beat reference](evidence/vn-dialogue.png)
+Private source frame: `vn-dialogue.png`.
 
 Observed:
 
@@ -205,7 +203,7 @@ Acceptance:
 
 **Health:** Plan-aligned; source frame contains recording-motion artifacts, so stable adjacent frames govern typography.
 
-![Auto control reference](evidence/vn-auto.png)
+Private source frame: `vn-auto.png`.
 
 Observed:
 
@@ -227,7 +225,7 @@ Acceptance:
 
 **Health:** Plan-aligned; long-content performance pending.
 
-![Transcript reference](evidence/transcript.png)
+Private source frame: `transcript.png`.
 
 Observed:
 
@@ -253,7 +251,7 @@ Acceptance:
 
 **Health:** Plan-aligned; keyboard/custom-input variants pending.
 
-![Your Move reference](evidence/your-move.png)
+Private source frame: `your-move.png`.
 
 Observed:
 
