@@ -1,0 +1,48 @@
+name: RPGPlayer
+options:
+  bundleIdPrefix: com.calpinlabs
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  RPGPlayer:
+    type: application
+    platform: iOS
+    sources: [RPGPlayer]
+    info:
+      path: Config/App-Info.plist
+    entitlements:
+      path: Config/RPGPlayer.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.calpinlabs.rpgplayer
+  RPGPlayerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RPGPlayerTests]
+    dependencies:
+      - target: RPGPlayer
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  RPGPlayerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [RPGPlayerUITests]
+    dependencies:
+      - target: RPGPlayer
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  RPGPlayer:
+    build:
+      targets:
+        RPGPlayer: all
+    test:
+      targets:
+        - RPGPlayerTests
+        - RPGPlayerUITests
