@@ -11,7 +11,7 @@ targets:
   RPGPlayer:
     type: application
     platform: iOS
-    sources: [RPGPlayer]
+    sources: [RPGPlayer, Shared]
     info:
       path: Config/App-Info.plist
     entitlements:
