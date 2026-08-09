@@ -259,7 +259,7 @@ Observed:
 
 - The bottom dock expands into a tall translucent choice surface while transcript/header remain visible.
 - Suggestions are dense radio rows with optional explanatory text.
-- `Type something…`+ is a peer choice.
+- `Type something…` is a peer choice.
 - Additional context is a separate editor.
 - Confirm is pinned in a bottom action band.
 
@@ -316,4 +316,3 @@ These are open verification items, not screenshot-proven failures:
 ## Audit Conclusion
 
 The end-to-end plan matches the recorded Craft mobile hierarchy and includes explicit visual regression gates. The implementation must not proceed past Phase 1 acceptance until the nine canonical app captures are compared side-by-side with this evidence and every visible mismatch in crop, geometry, typography, material, and control placement is resolved.
-
