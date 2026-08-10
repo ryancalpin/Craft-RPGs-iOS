@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlayerShellView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var state: PlayerSessionState
     @State private var headerFocusRequest: GameHeaderFocus?
     @State private var projectSearchText = ""
@@ -11,12 +12,21 @@ struct PlayerShellView: View {
     @State private var stableContainerSafeAreaBottom: CGFloat = 0
     @GestureState private var drawerDragOffset: CGFloat = 0
     @State private var projectSearchFocused = false
+    @State private var pendingSubmission: PlayerSubmission?
+    private let exposesTurnContextForTesting: Bool
+    private let forcedDynamicTypeSize: DynamicTypeSize?
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
         var initialState = PlayerSessionState.fixture
         if Self.fixtureName(in: arguments) == "visual-novel" {
             initialState.mode = .visualNovel
         }
+        exposesTurnContextForTesting = arguments.contains(
+            "-turn-sheet-geometry-test"
+        )
+        forcedDynamicTypeSize = arguments.contains(
+            "-dynamic-type-accessibility-test"
+        ) ? .accessibility5 : nil
         _state = State(initialValue: initialState)
     }
 
@@ -27,15 +37,24 @@ struct PlayerShellView: View {
 
             ZStack {
                 SceneCanvasView()
-                    .accessibilityHidden(state.drawer != .none)
+                    .accessibilityHidden(
+                        state.drawer != .none || state.isTurnSheetPresented
+                    )
 
                 TopLegibilityGradient()
 
                 presentationContent(
+                    availableHeight: proxy.size.height
+                        + safeAreaTop
+                        + safeAreaBottom,
                     safeAreaTop: safeAreaTop,
                     safeAreaBottom: safeAreaBottom
                 )
-                .accessibilityHidden(state.drawer != .none)
+                .accessibilityHidden(
+                    state.drawer != .none
+                        || (state.isTurnSheetPresented
+                            && !exposesTurnContextForTesting)
+                )
 
                 VStack(spacing: 0) {
                     GameHeaderView(
@@ -47,7 +66,26 @@ struct PlayerShellView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.top, safeAreaTop)
-                .accessibilityHidden(state.drawer != .none)
+                .accessibilityHidden(
+                    state.drawer != .none || state.isTurnSheetPresented
+                )
+
+                if state.isTurnSheetPresented, state.mode == .transcript {
+                    turnSheetOverlay(
+                        availableWidth: proxy.size.width,
+                        availableHeight: proxy.size.height
+                            + safeAreaTop
+                            + safeAreaBottom,
+                        obscuredBottom: safeAreaBottom,
+                        safeAreaBottom: max(
+                            stableContainerSafeAreaBottom,
+                            PlayerLayoutMetrics.containerSafeAreaBottom(
+                                from: safeAreaBottom
+                            )
+                        )
+                    )
+                    .transition(turnSheetTransition)
+                }
 
                 if state.drawer != .none {
                     DrawerDismissLayer(close: closeDrawer)
@@ -107,13 +145,15 @@ struct PlayerShellView: View {
             .onAppear {
                 stableContainerSafeAreaBottom = max(
                     stableContainerSafeAreaBottom,
-                    safeAreaBottom
+                    PlayerLayoutMetrics.containerSafeAreaBottom(
+                        from: safeAreaBottom
+                    )
                 )
             }
             .onChange(of: proxy.safeAreaInsets.bottom) { _, newValue in
                 stableContainerSafeAreaBottom = max(
                     stableContainerSafeAreaBottom,
-                    PlayerLayoutMetrics.safeAreaInset(newValue)
+                    PlayerLayoutMetrics.containerSafeAreaBottom(from: newValue)
                 )
             }
         }
@@ -122,6 +162,10 @@ struct PlayerShellView: View {
             edges: state.drawer == .project ? .bottom : []
         )
         .preferredColorScheme(.dark)
+        .environment(
+            \.dynamicTypeSize,
+            forcedDynamicTypeSize ?? dynamicTypeSize
+        )
         .sheet(isPresented: $packageSheetPresented, onDismiss: {
             headerFocusRequest = .project
         }) {
@@ -144,12 +188,23 @@ struct PlayerShellView: View {
 
     @ViewBuilder
     private func presentationContent(
+        availableHeight: CGFloat,
         safeAreaTop: CGFloat,
         safeAreaBottom: CGFloat
     ) -> some View {
         switch state.mode {
         case .transcript:
-            TranscriptSurfaceLandmark()
+            TranscriptView(
+                messages: state.messages,
+                choiceCount: state.choices.count,
+                safeAreaTop: safeAreaTop,
+                safeAreaBottom: safeAreaBottom,
+                moveSheetReservation: moveSheetReservation(
+                    availableHeight: availableHeight,
+                    obscuredBottom: safeAreaBottom
+                ),
+                openMove: { send(.presentTurnSheet) }
+            )
         case .visualNovel:
             VisualNovelView(
                 message: state.latestMessage,
@@ -164,6 +219,84 @@ struct PlayerShellView: View {
         }
     }
 
+    private func turnSheetOverlay(
+        availableWidth: CGFloat,
+        availableHeight: CGFloat,
+        obscuredBottom: CGFloat,
+        safeAreaBottom: CGFloat
+    ) -> some View {
+        let sheetHeight = PlayerLayoutMetrics.turnSheetHeight(
+            for: availableHeight,
+            obscuredBottom: obscuredBottom
+        )
+        let bottomClearance = PlayerLayoutMetrics.turnSheetBottomClearance(
+            obscuredBottom: obscuredBottom
+        )
+
+        return ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .accessibilityHidden(true)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                YourMoveSheet(
+                    choices: state.choices,
+                    prompt: state.latestMessage.finalQuestion,
+                    safeAreaBottom: PlayerLayoutMetrics.turnSheetFooterInset(
+                        containerSafeAreaBottom: safeAreaBottom,
+                        obscuredBottom: obscuredBottom
+                    ),
+                    cancel: { send(.dismissTurnSheet) },
+                    submit: submitMove
+                )
+                .frame(
+                    width: PlayerLayoutMetrics.turnSheetWidth(
+                        for: availableWidth
+                    ),
+                    height: sheetHeight
+                )
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: PlayerLayoutMetrics.turnSheetCornerRadius,
+                        style: .continuous
+                    )
+                )
+                .background {
+                    if exposesTurnContextForTesting {
+                        Color.clear
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Your Move surface")
+                            .accessibilityIdentifier("yourMoveSurface")
+                            .accessibilityRespondsToUserInteraction(false)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .shadow(color: Color.black.opacity(0.18), radius: 18, y: -6)
+
+                Color.clear
+                    .frame(height: bottomClearance)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func moveSheetReservation(
+        availableHeight: CGFloat,
+        obscuredBottom: CGFloat
+    ) -> CGFloat? {
+        guard state.isTurnSheetPresented else { return nil }
+        return PlayerLayoutMetrics.turnSheetHeight(
+            for: availableHeight,
+            obscuredBottom: obscuredBottom
+        ) + PlayerLayoutMetrics.turnSheetBottomClearance(
+            obscuredBottom: obscuredBottom
+        ) + PlayerLayoutMetrics.turnSheetContextGap(
+            obscuredBottom: obscuredBottom
+        )
+    }
+
     private static func fixtureName(in arguments: [String]) -> String? {
         guard let fixtureFlag = arguments.firstIndex(of: "-fixture") else {
             return nil
@@ -173,8 +306,17 @@ struct PlayerShellView: View {
         return arguments[valueIndex]
     }
 
+    private func submitMove(_ submission: PlayerSubmission) {
+        pendingSubmission = submission
+        send(.generationStarted(requestID: UUID().uuidString))
+    }
+
     private func drawerTransition(edge: Edge) -> AnyTransition {
         reduceMotion ? .opacity : .move(edge: edge)
+    }
+
+    private var turnSheetTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom)
     }
 
     private func send(_ action: PlayerAction) {
@@ -251,7 +393,8 @@ struct PlayerShellView: View {
     private func edgeOpeningGesture(screenWidth: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 12)
             .onEnded { value in
-                guard state.drawer == .none else { return }
+                guard state.drawer == .none,
+                      !state.isTurnSheetPresented else { return }
                 if value.startLocation.x <= 24,
                    value.predictedEndTranslation.width > 80 {
                     send(.openDrawer(.project))
@@ -263,17 +406,21 @@ struct PlayerShellView: View {
     }
 }
 
-private struct TranscriptSurfaceLandmark: View {
-    var body: some View {
-        Color.clear
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Transcript")
-            .accessibilityIdentifier("transcriptSurface")
-            .allowsHitTesting(false)
-    }
-}
-
 enum PlayerLayoutMetrics {
+    static let turnSheetHeightRatio: CGFloat = 1_242.0 / 2_868.0
+    static let turnSheetHorizontalInset: CGFloat = 12
+    static let turnSheetMaxWidth: CGFloat = 700
+    static let turnSheetRestingBottomClearance: CGFloat = 13
+    static let turnSheetCornerRadius: CGFloat = 24
+    static let turnSheetRestingContextGap: CGFloat = 45
+    static let turnSheetContentSpacing: CGFloat = 8
+    static let turnChoiceSpacing: CGFloat = 8
+    static let turnChoiceMinimumHeight: CGFloat = 72
+    static let turnChoiceIndicatorDiameter: CGFloat = 18
+    static let turnConfirmChromeSize = CGSize(width: 94, height: 34)
+    static let turnConfirmHitHeight: CGFloat = 44
+    static let turnConfirmFooterPadding: CGFloat = 7
+
     static func projectDrawerWidth(for availableWidth: CGFloat) -> CGFloat {
         min(validatedWidth(availableWidth) * 0.72, 420)
     }
@@ -284,6 +431,50 @@ enum PlayerLayoutMetrics {
 
     static func safeAreaInset(_ inset: CGFloat) -> CGFloat {
         validatedWidth(inset)
+    }
+
+    static func turnSheetHeight(
+        for availableHeight: CGFloat,
+        obscuredBottom: CGFloat = 0
+    ) -> CGFloat {
+        let fullHeight = validatedWidth(availableHeight)
+        let canonicalHeight = fullHeight * turnSheetHeightRatio
+        let bottomInset = validatedWidth(obscuredBottom)
+        guard bottomInset > 100 else { return canonicalHeight }
+        let visibleHeight = max(0, fullHeight - bottomInset)
+        return min(canonicalHeight, max(0, visibleHeight - 120))
+    }
+
+    static func turnSheetWidth(for availableWidth: CGFloat) -> CGFloat {
+        min(
+            max(0, validatedWidth(availableWidth) - 2 * turnSheetHorizontalInset),
+            turnSheetMaxWidth
+        )
+    }
+
+    static func turnSheetBottomClearance(obscuredBottom: CGFloat) -> CGFloat {
+        validatedWidth(obscuredBottom) > 100
+            ? 0
+            : turnSheetRestingBottomClearance
+    }
+
+    static func turnSheetContextGap(obscuredBottom: CGFloat) -> CGFloat {
+        validatedWidth(obscuredBottom) > 100
+            ? 0
+            : turnSheetRestingContextGap
+    }
+
+    static func turnSheetFooterInset(
+        containerSafeAreaBottom _: CGFloat,
+        obscuredBottom: CGFloat
+    ) -> CGFloat {
+        _ = validatedWidth(obscuredBottom)
+        return turnConfirmFooterPadding
+    }
+
+    static func containerSafeAreaBottom(from inset: CGFloat) -> CGFloat {
+        let value = validatedWidth(inset)
+        return value <= 100 ? value : 0
     }
 
     private static func validatedWidth(_ availableWidth: CGFloat) -> CGFloat {

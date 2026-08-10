@@ -48,3 +48,8 @@ struct PlayerChoice: Identifiable, Equatable, Sendable {
     let title: String
     let detail: String
 }
+
+struct PlayerSubmission: Equatable, Sendable {
+    let action: String
+    let additionalContext: String
+}

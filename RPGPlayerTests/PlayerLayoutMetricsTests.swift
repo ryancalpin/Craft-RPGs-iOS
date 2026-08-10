@@ -32,6 +32,56 @@ final class PlayerLayoutMetricsTests: XCTestCase {
         XCTAssertEqual(PlayerLayoutMetrics.safeAreaInset(34), 34)
     }
 
+    func testKeyboardHeightIsNotStoredAsContainerSafeArea() {
+        XCTAssertEqual(PlayerLayoutMetrics.containerSafeAreaBottom(from: 34), 34)
+        XCTAssertEqual(PlayerLayoutMetrics.containerSafeAreaBottom(from: 345), 0)
+    }
+
+    func testKeyboardConstrainedTurnSheetProtectsStatusBar() {
+        let sheetHeight = PlayerLayoutMetrics.turnSheetHeight(
+            for: 956,
+            obscuredBottom: 345
+        )
+
+        XCTAssertGreaterThanOrEqual(956 - 345 - sheetHeight, 120)
+        XCTAssertEqual(
+            PlayerLayoutMetrics.turnSheetHeight(
+                for: 956,
+                obscuredBottom: 34
+            ),
+            956 * (1_242.0 / 2_868.0),
+            accuracy: 0.001
+        )
+        XCTAssertEqual(PlayerLayoutMetrics.turnSheetWidth(for: 440), 416)
+        XCTAssertEqual(
+            PlayerLayoutMetrics.turnSheetBottomClearance(obscuredBottom: 34),
+            13
+        )
+        XCTAssertEqual(
+            PlayerLayoutMetrics.turnSheetBottomClearance(obscuredBottom: 345),
+            0
+        )
+        XCTAssertEqual(PlayerLayoutMetrics.turnSheetCornerRadius, 24)
+        XCTAssertEqual(
+            PlayerLayoutMetrics.turnSheetContextGap(obscuredBottom: 34),
+            45
+        )
+        XCTAssertEqual(
+            PlayerLayoutMetrics.turnSheetContextGap(obscuredBottom: 345),
+            0
+        )
+        XCTAssertEqual(PlayerLayoutMetrics.turnSheetContentSpacing, 8)
+        XCTAssertEqual(PlayerLayoutMetrics.turnChoiceSpacing, 8)
+        XCTAssertEqual(PlayerLayoutMetrics.turnChoiceMinimumHeight, 72)
+        XCTAssertEqual(PlayerLayoutMetrics.turnChoiceIndicatorDiameter, 18)
+        XCTAssertEqual(
+            PlayerLayoutMetrics.turnConfirmChromeSize,
+            CGSize(width: 94, height: 34)
+        )
+        XCTAssertEqual(PlayerLayoutMetrics.turnConfirmHitHeight, 44)
+        XCTAssertEqual(PlayerLayoutMetrics.turnConfirmFooterPadding, 7)
+    }
+
     @MainActor
     func testSearchKeyboardAccessoryUsesOneContinuousChromeAndNativeTargets() {
         for width in [CGFloat(440), 1_032] {

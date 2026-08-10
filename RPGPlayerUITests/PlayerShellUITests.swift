@@ -350,10 +350,334 @@ final class PlayerShellUITests: XCTestCase {
         XCTAssertTrue(next.label.contains("End of scene — your move"))
 
         next.tap()
+        let moveSheet = app.descendants(matching: .any)["yourMoveSheet"]
+        XCTAssertTrue(moveSheet.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.otherElements["visualNovelCard"].exists)
+        XCTAssertFalse(app.buttons["confirmMove"].isEnabled)
+
+        app.buttons["closeYourMoveSheet"].tap()
         XCTAssertTrue(
             app.otherElements["transcriptSurface"].waitForExistence(timeout: 1)
         )
-        XCTAssertFalse(app.otherElements["visualNovelCard"].exists)
+        app.buttons["yourMoveDock"].tap()
+        XCTAssertTrue(moveSheet.waitForExistence(timeout: 1))
+    }
+
+    func testYourMoveSheetRequiresAnAction() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-fixture",
+            "player-shell",
+            "-turn-sheet-geometry-test"
+        ]
+        app.launch()
+
+        let transcript = app.descendants(matching: .any)["transcriptSurface"]
+        let dock = app.buttons["yourMoveDock"]
+        XCTAssertTrue(transcript.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["transcriptActionsDisclosure"].exists)
+        XCTAssertTrue(app.staticTexts["latestGMQuestion"].exists)
+        XCTAssertTrue(dock.exists)
+        XCTAssertTrue(
+            (dock.value as? String)?.contains("The GM is waiting") == true
+        )
+        XCTAssertGreaterThan(dock.frame.minY, app.frame.height * 0.84)
+        XCTAssertGreaterThan(transcript.frame.minX, app.frame.width * 0.10)
+        XCTAssertLessThan(transcript.frame.maxY, dock.frame.minY)
+
+        let collapsedCapture = XCTAttachment(screenshot: app.screenshot())
+        collapsedCapture.name = "transcript-collapsed-move"
+        collapsedCapture.lifetime = .keepAlways
+        add(collapsedCapture)
+
+        dock.tap()
+        let moveSheet = app.descendants(matching: .any)["yourMoveSheet"]
+        XCTAssertTrue(moveSheet.waitForExistence(timeout: 2))
+        let sheetSurface = app.descendants(matching: .any)["yourMoveSurface"]
+        XCTAssertTrue(sheetSurface.waitForExistence(timeout: 1))
+        let transcriptViewport = app.scrollViews["transcriptScrollViewport"]
+        XCTAssertTrue(transcriptViewport.exists)
+        XCTAssertGreaterThanOrEqual(
+            transcriptViewport.frame.minY,
+            app.buttons["projectDrawerButton"].frame.maxY
+        )
+        XCTAssertEqual(
+            sheetSurface.frame.minY,
+            app.frame.minY + app.frame.height * (1_588.0 / 2_868.0),
+            accuracy: 6
+        )
+        XCTAssertEqual(
+            sheetSurface.frame.height,
+            app.frame.height * (1_242.0 / 2_868.0),
+            accuracy: 8
+        )
+        XCTAssertEqual(sheetSurface.frame.minX - app.frame.minX, 12, accuracy: 2)
+        XCTAssertEqual(
+            app.frame.maxX - sheetSurface.frame.maxX,
+            12,
+            accuracy: 2
+        )
+        XCTAssertEqual(
+            app.frame.maxY - sheetSurface.frame.maxY,
+            13,
+            accuracy: 3
+        )
+
+        let expandedActions = app.buttons["transcriptActionsDisclosure"]
+        let expandedQuestion = app.staticTexts["latestGMQuestion"]
+        XCTAssertTrue(expandedActions.exists)
+        XCTAssertTrue(expandedQuestion.exists)
+        let geometryCapture = XCTAttachment(screenshot: app.screenshot())
+        geometryCapture.name = "your-move-geometry"
+        geometryCapture.lifetime = .keepAlways
+        add(geometryCapture)
+        XCTAssertFalse(
+            expandedActions.frame.intersects(sheetSurface.frame),
+            "Actions \(expandedActions.frame), sheet \(sheetSurface.frame)"
+        )
+        XCTAssertFalse(
+            expandedQuestion.frame.intersects(sheetSurface.frame),
+            "Question \(expandedQuestion.frame), sheet \(sheetSurface.frame)"
+        )
+        XCTAssertGreaterThanOrEqual(
+            expandedQuestion.frame.minY - expandedActions.frame.maxY,
+            0
+        )
+        XCTAssertLessThanOrEqual(
+            expandedQuestion.frame.minY - expandedActions.frame.maxY,
+            4
+        )
+        let questionToSheetGap =
+            sheetSurface.frame.minY - expandedQuestion.frame.maxY
+        XCTAssertGreaterThanOrEqual(questionToSheetGap, 0)
+        if abs(app.frame.width - 440) <= 1 {
+            XCTAssertGreaterThanOrEqual(questionToSheetGap, 55)
+            XCTAssertLessThanOrEqual(questionToSheetGap, 90)
+        }
+        XCTAssertFalse(app.buttons["confirmMove"].isEnabled)
+
+        let rows = [
+            app.buttons["Stay in the shadow"],
+            app.buttons["Call out to the rider"],
+            app.buttons["Take the ridge path"]
+        ]
+        for row in rows {
+            XCTAssertEqual(row.frame.minX - sheetSurface.frame.minX, 12, accuracy: 3)
+            XCTAssertEqual(sheetSurface.frame.maxX - row.frame.maxX, 12, accuracy: 3)
+            XCTAssertGreaterThanOrEqual(row.frame.height, 72)
+            if abs(app.frame.width - 440) <= 1 {
+                XCTAssertEqual(row.frame.height, 72, accuracy: 2)
+            }
+        }
+        for pair in zip(rows, rows.dropFirst()) {
+            XCTAssertEqual(pair.1.frame.minY - pair.0.frame.maxY, 8, accuracy: 3)
+        }
+
+        let confirm = app.buttons["confirmMove"]
+        XCTAssertLessThanOrEqual(rows[2].frame.maxY, confirm.frame.minY)
+        let customChoice = app.buttons["customMoveChoice"]
+        XCTAssertGreaterThanOrEqual(customChoice.frame.minY, rows[2].frame.maxY)
+        if abs(app.frame.width - 440) <= 1 {
+            XCTAssertLessThan(customChoice.frame.minY, confirm.frame.minY)
+        }
+        XCTAssertEqual(confirm.frame.width, 94, accuracy: 2)
+        XCTAssertEqual(
+            sheetSurface.frame.maxY - confirm.frame.maxY,
+            7,
+            accuracy: 2
+        )
+        XCTAssertEqual(confirm.frame.height, 44, accuracy: 2)
+
+        let expandedCapture = XCTAttachment(screenshot: app.screenshot())
+        expandedCapture.name = "your-move-expanded"
+        expandedCapture.lifetime = .keepAlways
+        add(expandedCapture)
+
+        let firstChoice = app.buttons["Stay in the shadow"]
+        XCTAssertEqual(
+            firstChoice.value as? String,
+            "Watch the lantern road and learn who is following you. Not selected"
+        )
+        firstChoice.tap()
+        XCTAssertEqual(
+            firstChoice.value as? String,
+            "Watch the lantern road and learn who is following you. Selected"
+        )
+        XCTAssertTrue(app.buttons["confirmMove"].isEnabled)
+    }
+
+    func testCustomMoveSeparatesContextAndKeepsConfirmAboveKeyboard() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixture", "player-shell"]
+        app.launch()
+
+        app.buttons["yourMoveDock"].tap()
+        let moveSheet = app.descendants(matching: .any)["yourMoveSheet"]
+        XCTAssertTrue(moveSheet.waitForExistence(timeout: 2))
+
+        let firstChoice = app.buttons["Stay in the shadow"]
+        let secondChoice = app.buttons["Call out to the rider"]
+        firstChoice.tap()
+        XCTAssertEqual(
+            firstChoice.value as? String,
+            "Watch the lantern road and learn who is following you. Selected"
+        )
+        secondChoice.tap()
+        XCTAssertEqual(
+            firstChoice.value as? String,
+            "Watch the lantern road and learn who is following you. Not selected"
+        )
+        XCTAssertEqual(
+            secondChoice.value as? String,
+            "Risk being seen in exchange for a direct answer. Selected"
+        )
+
+        moveSheet.swipeUp()
+        let customChoice = app.buttons["customMoveChoice"]
+        XCTAssertTrue(customChoice.waitForExistence(timeout: 1))
+        if !customChoice.isHittable {
+            moveSheet.swipeUp()
+        }
+        customChoice.tap()
+
+        let additionalContext = app.textViews["additionalContextEditor"]
+        for _ in 0..<3 where !additionalContext.exists {
+            moveSheet.swipeUp()
+        }
+        XCTAssertTrue(additionalContext.waitForExistence(timeout: 1))
+        if !additionalContext.isHittable {
+            moveSheet.swipeUp()
+        }
+        additionalContext.tap()
+        additionalContext.typeText("Keep the approach quiet")
+        let confirm = app.buttons["confirmMove"]
+        XCTAssertFalse(confirm.isEnabled)
+
+        let customAction = app.textViews["customActionEditor"]
+        for _ in 0..<3 where !customAction.exists {
+            moveSheet.swipeDown()
+        }
+        XCTAssertTrue(customAction.waitForExistence(timeout: 1))
+        if !customAction.isHittable {
+            moveSheet.swipeDown()
+        }
+        customAction.tap()
+        customAction.typeText("Hold position and watch the road")
+        XCTAssertTrue(confirm.isEnabled)
+        XCTAssertTrue(confirm.isHittable)
+
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.exists)
+        XCTAssertLessThanOrEqual(confirm.frame.maxY, keyboard.frame.minY + 2)
+
+        let keyboardCapture = XCTAttachment(screenshot: app.screenshot())
+        keyboardCapture.name = "your-move-keyboard"
+        keyboardCapture.lifetime = .keepAlways
+        add(keyboardCapture)
+
+        confirm.tap()
+        XCTAssertFalse(moveSheet.waitForExistence(timeout: 1))
+        XCTAssertTrue(app.buttons["yourMoveDock"].exists)
+    }
+
+    func testTurnSheetBlocksDrawerEdgeGestures() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixture", "player-shell"]
+        app.launch()
+
+        app.buttons["yourMoveDock"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["yourMoveSheet"]
+                .waitForExistence(timeout: 2)
+        )
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.35))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: app.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.45, dy: 0.35)
+                )
+            )
+
+        XCTAssertFalse(
+            app.descendants(matching: .any)["projectDrawer"]
+                .waitForExistence(timeout: 1)
+        )
+    }
+
+    func testAccessibilityTextKeepsQuestionAboveMeasuredMoveDock() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-fixture",
+            "player-shell",
+            "-dynamic-type-accessibility-test"
+        ]
+        app.launch()
+
+        let transcript = app.descendants(matching: .any)["transcriptSurface"]
+        let dock = app.buttons["yourMoveDock"]
+        let question = app.staticTexts["latestGMQuestion"]
+        XCTAssertTrue(transcript.waitForExistence(timeout: 2))
+        XCTAssertTrue(dock.exists)
+        XCTAssertGreaterThanOrEqual(dock.frame.height, 72)
+        XCTAssertLessThanOrEqual(dock.frame.height, 160)
+
+        for _ in 0..<12 {
+            if question.exists,
+               question.frame.maxY <= dock.frame.minY {
+                break
+            }
+            transcript.swipeUp()
+        }
+
+        let accessibilityCapture = XCTAttachment(screenshot: app.screenshot())
+        accessibilityCapture.name = "transcript-accessibility-xxxl"
+        accessibilityCapture.lifetime = .keepAlways
+        add(accessibilityCapture)
+
+        XCTAssertTrue(question.isHittable)
+        XCTAssertLessThanOrEqual(question.frame.maxY, dock.frame.minY)
+        XCTAssertTrue(
+            (dock.value as? String)?.contains("The GM is waiting") == true
+        )
+    }
+
+    func testAccessibilityTurnSheetLetsConfirmGrowAboveKeyboard() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-fixture",
+            "player-shell",
+            "-dynamic-type-accessibility-test"
+        ]
+        app.launch()
+
+        let dock = app.buttons["yourMoveDock"]
+        XCTAssertGreaterThan(dock.frame.height, 72)
+        dock.tap()
+        let moveSheet = app.descendants(matching: .any)["yourMoveSheet"]
+        XCTAssertTrue(moveSheet.waitForExistence(timeout: 2))
+
+        let confirm = app.buttons["confirmMove"]
+        XCTAssertTrue(confirm.label.contains("Confirm"))
+        XCTAssertGreaterThan(confirm.frame.width, 94)
+        XCTAssertGreaterThanOrEqual(confirm.frame.height, 44)
+
+        let customChoice = app.buttons["customMoveChoice"]
+        for _ in 0..<12 where !customChoice.exists {
+            moveSheet.swipeUp()
+        }
+        XCTAssertTrue(customChoice.exists)
+        customChoice.tap()
+
+        let customAction = app.textViews["customActionEditor"]
+        XCTAssertTrue(customAction.waitForExistence(timeout: 1))
+        customAction.typeText("Wait and watch")
+
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 2))
+        XCTAssertTrue(confirm.isEnabled)
+        XCTAssertTrue(confirm.isHittable)
+        XCTAssertLessThanOrEqual(confirm.frame.maxY, keyboard.frame.minY + 2)
     }
 
     private func waitForDrawerPresentation(
