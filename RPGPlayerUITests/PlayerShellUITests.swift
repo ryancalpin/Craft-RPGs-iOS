@@ -577,7 +577,85 @@ final class PlayerShellUITests: XCTestCase {
 
         confirm.tap()
         XCTAssertFalse(moveSheet.waitForExistence(timeout: 1))
-        XCTAssertTrue(app.buttons["yourMoveDock"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["generationView"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(app.buttons["yourMoveDock"].exists)
+    }
+
+    func testSuggestedMoveStartsGenerationAndStopIsUserInitiated() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixture", "player-shell"]
+        app.launch()
+
+        app.buttons["yourMoveDock"].tap()
+        let moveSheet = app.descendants(matching: .any)["yourMoveSheet"]
+        XCTAssertTrue(moveSheet.waitForExistence(timeout: 2))
+
+        app.buttons["Stay in the shadow"].tap()
+        let confirm = app.buttons["confirmMove"]
+        XCTAssertTrue(confirm.isEnabled)
+        confirm.tap()
+
+        let generation = app.descendants(matching: .any)["generationView"]
+        XCTAssertTrue(generation.waitForExistence(timeout: 2))
+        XCTAssertFalse(moveSheet.exists)
+        XCTAssertFalse(app.buttons["yourMoveDock"].exists)
+        let disclosure = app.buttons["generationStepsDisclosure"]
+        XCTAssertTrue(disclosure.exists)
+
+        let card = app.descendants(matching: .any)["generationCard"]
+        XCTAssertTrue(card.exists)
+        let collapsedFrame = card.frame
+        XCTAssertEqual(collapsedFrame.minX, 16, accuracy: 2)
+        XCTAssertEqual(collapsedFrame.minY, 820, accuracy: 2)
+        XCTAssertEqual(collapsedFrame.width, 408, accuracy: 2)
+        XCTAssertEqual(collapsedFrame.height, 104, accuracy: 2)
+
+        let statusBeforeStop = app.staticTexts["generationStatus"]
+        XCTAssertTrue(statusBeforeStop.exists)
+        let firstPhaseStarted = expectation(
+            for: NSPredicate(format: "label != %@", "Getting ready…"),
+            evaluatedWith: statusBeforeStop
+        )
+        wait(for: [firstPhaseStarted], timeout: 1.2)
+        XCTAssertLessThanOrEqual(statusBeforeStop.frame.height, 24)
+
+        let collapsedCapture = XCTAttachment(screenshot: app.screenshot())
+        collapsedCapture.name = "generation-collapsed"
+        collapsedCapture.lifetime = .keepAlways
+        add(collapsedCapture)
+
+        let stop = app.buttons["stopGeneration"]
+        XCTAssertTrue(stop.isHittable)
+        XCTAssertGreaterThanOrEqual(stop.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(stop.frame.height, 44)
+        stop.tap()
+
+        let status = app.staticTexts["generationStatus"]
+        XCTAssertTrue(status.waitForExistence(timeout: 1))
+        XCTAssertEqual(status.label, "Needs attention")
+        XCTAssertFalse(app.descendants(matching: .any)["visualNovelCard"].exists)
+
+        disclosure.tap()
+        let firstStep = app.staticTexts["generationStep-0"]
+        XCTAssertTrue(firstStep.waitForExistence(timeout: 1))
+        let expandedFrame = card.frame
+        XCTAssertEqual(expandedFrame.minX, collapsedFrame.minX, accuracy: 1)
+        XCTAssertEqual(expandedFrame.width, collapsedFrame.width, accuracy: 1)
+        XCTAssertEqual(expandedFrame.maxY, collapsedFrame.maxY, accuracy: 1)
+        XCTAssertLessThan(expandedFrame.minY, collapsedFrame.minY)
+
+        let expandedCapture = XCTAttachment(screenshot: app.screenshot())
+        expandedCapture.name = "generation-expanded"
+        expandedCapture.lifetime = .keepAlways
+        add(expandedCapture)
+
+        disclosure.tap()
+        XCTAssertFalse(firstStep.waitForExistence(timeout: 1))
+        XCTAssertEqual(card.frame.minY, collapsedFrame.minY, accuracy: 1)
+        XCTAssertEqual(card.frame.height, collapsedFrame.height, accuracy: 1)
     }
 
     func testTurnSheetBlocksDrawerEdgeGestures() {

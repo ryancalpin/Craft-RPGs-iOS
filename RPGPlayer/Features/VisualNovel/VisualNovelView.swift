@@ -297,7 +297,7 @@ private struct AvatarPlaceholder: View {
     }
 }
 
-private struct CharacterSilhouettePlaceholder: View {
+struct CharacterSilhouettePlaceholder: View {
     var body: some View {
         GeometryReader { proxy in
             let width = proxy.size.width

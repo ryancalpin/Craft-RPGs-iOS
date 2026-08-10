@@ -13,10 +13,14 @@ struct PlayerShellView: View {
     @GestureState private var drawerDragOffset: CGFloat = 0
     @State private var projectSearchFocused = false
     @State private var pendingSubmission: PlayerSubmission?
+    @State private var generationSteps: [String] = []
+    @State private var generationTask: Task<Void, Never>?
+    private let turnStreaming: any TurnStreaming
     private let exposesTurnContextForTesting: Bool
     private let forcedDynamicTypeSize: DynamicTypeSize?
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
+        turnStreaming = SimulatedTurnStreaming(delay: .milliseconds(700))
         var initialState = PlayerSessionState.fixture
         if Self.fixtureName(in: arguments) == "visual-novel" {
             initialState.mode = .visualNovel
@@ -156,6 +160,10 @@ struct PlayerShellView: View {
                     PlayerLayoutMetrics.containerSafeAreaBottom(from: newValue)
                 )
             }
+            .onDisappear {
+                generationTask?.cancel()
+                generationTask = nil
+            }
         }
         .ignoresSafeArea(
             .keyboard,
@@ -192,30 +200,41 @@ struct PlayerShellView: View {
         safeAreaTop: CGFloat,
         safeAreaBottom: CGFloat
     ) -> some View {
-        switch state.mode {
-        case .transcript:
-            TranscriptView(
-                messages: state.messages,
-                choiceCount: state.choices.count,
+        if let generation = state.generation {
+            GenerationView(
+                phase: generation,
+                steps: generationSteps,
                 safeAreaTop: safeAreaTop,
                 safeAreaBottom: safeAreaBottom,
-                moveSheetReservation: moveSheetReservation(
-                    availableHeight: availableHeight,
-                    obscuredBottom: safeAreaBottom
-                ),
-                openMove: { send(.presentTurnSheet) }
+                canStop: state.activeRequestID != nil,
+                stop: stopGeneration
             )
-        case .visualNovel:
-            VisualNovelView(
-                message: state.latestMessage,
-                beatIndex: state.beatIndex,
-                safeAreaTop: safeAreaTop,
-                safeAreaBottom: safeAreaBottom,
-                previous: { send(.previousBeat) },
-                next: { send(.nextBeat) },
-                close: { send(.setMode(.transcript)) },
-                finish: { send(.finishVisualNovel) }
-            )
+        } else {
+            switch state.mode {
+            case .transcript:
+                TranscriptView(
+                    messages: state.messages,
+                    choiceCount: state.choices.count,
+                    safeAreaTop: safeAreaTop,
+                    safeAreaBottom: safeAreaBottom,
+                    moveSheetReservation: moveSheetReservation(
+                        availableHeight: availableHeight,
+                        obscuredBottom: safeAreaBottom
+                    ),
+                    openMove: { send(.presentTurnSheet) }
+                )
+            case .visualNovel:
+                VisualNovelView(
+                    message: state.latestMessage,
+                    beatIndex: state.beatIndex,
+                    safeAreaTop: safeAreaTop,
+                    safeAreaBottom: safeAreaBottom,
+                    previous: { send(.previousBeat) },
+                    next: { send(.nextBeat) },
+                    close: { send(.setMode(.transcript)) },
+                    finish: { send(.finishVisualNovel) }
+                )
+            }
         }
     }
 
@@ -307,8 +326,54 @@ struct PlayerShellView: View {
     }
 
     private func submitMove(_ submission: PlayerSubmission) {
+        generationTask?.cancel()
+        let requestID = UUID().uuidString
         pendingSubmission = submission
-        send(.generationStarted(requestID: UUID().uuidString))
+        generationSteps = []
+        send(.generationStarted(requestID: requestID))
+        generationTask = Task { @MainActor in
+            do {
+                for try await event in turnStreaming.events(for: submission) {
+                    guard !Task.isCancelled,
+                          state.activeRequestID == requestID else {
+                        return
+                    }
+
+                    switch event {
+                    case .phase(let phase):
+                        send(.generationPhaseChanged(phase))
+                    case .step(let step):
+                        generationSteps.append(step)
+                    case .completed(let message):
+                        send(
+                            .generationCompleted(
+                                requestID: requestID,
+                                message: message
+                            )
+                        )
+                        pendingSubmission = nil
+                        generationSteps = []
+                        generationTask = nil
+                        return
+                    }
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard state.activeRequestID == requestID else { return }
+                pendingSubmission = nil
+                generationTask = nil
+                send(.generationFailed)
+            }
+        }
+    }
+
+    private func stopGeneration() {
+        guard state.activeRequestID != nil else { return }
+        generationTask?.cancel()
+        generationTask = nil
+        pendingSubmission = nil
+        send(.generationFailed)
     }
 
     private func drawerTransition(edge: Edge) -> AnyTransition {

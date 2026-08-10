@@ -55,6 +55,26 @@ final class PlayerSessionStateTests: XCTestCase {
         XCTAssertEqual(state.mode, .visualNovel)
     }
 
+    func testFailedGenerationRejectsLateCompletion() {
+        var state = makeState()
+        let initialMessageCount = state.messages.count
+        let lateMessage = makeMessage(id: UUID())
+
+        state.reduce(.generationStarted(requestID: "request-1"))
+        state.reduce(.generationFailed)
+        state.reduce(
+            .generationCompleted(
+                requestID: "request-1",
+                message: lateMessage
+            )
+        )
+
+        XCTAssertNil(state.activeRequestID)
+        XCTAssertEqual(state.generation, .needsAttention)
+        XCTAssertEqual(state.messages.count, initialMessageCount)
+        XCTAssertEqual(state.mode, .transcript)
+    }
+
     private func makeState() -> PlayerSessionState {
         PlayerSessionState(
             campaignTitle: "Test Campaign",

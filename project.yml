@@ -16,6 +16,12 @@ targets:
       path: Config/App-Info.plist
       properties:
         CFBundleDisplayName: RPGPlayer
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Viewer
+            CFBundleURLName: com.calpinlabs.rpgplayer.turn
+            CFBundleURLSchemes:
+              - rpgplayer
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -29,6 +35,25 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.calpinlabs.rpgplayer
+    dependencies:
+      - target: TurnActivityExtension
+  TurnActivityExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - TurnActivityExtension
+      - Shared
+    info:
+      path: Config/TurnActivityExtension-Info.plist
+      properties:
+        CFBundleDisplayName: RPGPlayer Turn
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.calpinlabs.rpgplayer.turn-activity
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
   RPGPlayerTests:
     type: bundle.unit-test
     platform: iOS

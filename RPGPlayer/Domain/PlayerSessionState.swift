@@ -56,6 +56,7 @@ struct PlayerSessionState: Equatable, Sendable {
             beatIndex = 0
             mode = .visualNovel
         case .generationFailed:
+            activeRequestID = nil
             generation = .needsAttention
         }
     }
