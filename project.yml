@@ -14,6 +14,16 @@ targets:
     sources: [RPGPlayer, Shared]
     info:
       path: Config/App-Info.plist
+      properties:
+        CFBundleDisplayName: RPGPlayer
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     entitlements:
       path: Config/RPGPlayer.entitlements
     settings:
