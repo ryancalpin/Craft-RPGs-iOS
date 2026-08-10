@@ -29,6 +29,10 @@ struct PlayerSessionState: Equatable, Sendable {
             beatIndex = max(0, beatIndex - 1)
         case .nextBeat:
             beatIndex = min(max(0, latestMessage.beats.count - 1), beatIndex + 1)
+        case .finishVisualNovel:
+            mode = .transcript
+            beatIndex = min(beatIndex, max(0, latestMessage.beats.count - 1))
+            isTurnSheetPresented = true
         case .presentTurnSheet:
             isTurnSheetPresented = true
         case .dismissTurnSheet:
@@ -63,6 +67,7 @@ enum PlayerAction: Equatable, Sendable {
     case setMode(PlayerMode)
     case previousBeat
     case nextBeat
+    case finishVisualNovel
     case presentTurnSheet
     case dismissTurnSheet
     case generationStarted(requestID: String)

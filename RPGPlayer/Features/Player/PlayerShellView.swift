@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlayerShellView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var state = PlayerSessionState.fixture
+    @State private var state: PlayerSessionState
     @State private var headerFocusRequest: GameHeaderFocus?
     @State private var projectSearchText = ""
     @State private var packageSheetPresented = false
@@ -11,6 +11,14 @@ struct PlayerShellView: View {
     @State private var stableContainerSafeAreaBottom: CGFloat = 0
     @GestureState private var drawerDragOffset: CGFloat = 0
     @State private var projectSearchFocused = false
+
+    init(arguments: [String] = ProcessInfo.processInfo.arguments) {
+        var initialState = PlayerSessionState.fixture
+        if Self.fixtureName(in: arguments) == "visual-novel" {
+            initialState.mode = .visualNovel
+        }
+        _state = State(initialValue: initialState)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -22,6 +30,12 @@ struct PlayerShellView: View {
                     .accessibilityHidden(state.drawer != .none)
 
                 TopLegibilityGradient()
+
+                presentationContent(
+                    safeAreaTop: safeAreaTop,
+                    safeAreaBottom: safeAreaBottom
+                )
+                .accessibilityHidden(state.drawer != .none)
 
                 VStack(spacing: 0) {
                     GameHeaderView(
@@ -128,6 +142,37 @@ struct PlayerShellView: View {
         return .spring(response: 0.30, dampingFraction: 0.85)
     }
 
+    @ViewBuilder
+    private func presentationContent(
+        safeAreaTop: CGFloat,
+        safeAreaBottom: CGFloat
+    ) -> some View {
+        switch state.mode {
+        case .transcript:
+            TranscriptSurfaceLandmark()
+        case .visualNovel:
+            VisualNovelView(
+                message: state.latestMessage,
+                beatIndex: state.beatIndex,
+                safeAreaTop: safeAreaTop,
+                safeAreaBottom: safeAreaBottom,
+                previous: { send(.previousBeat) },
+                next: { send(.nextBeat) },
+                close: { send(.setMode(.transcript)) },
+                finish: { send(.finishVisualNovel) }
+            )
+        }
+    }
+
+    private static func fixtureName(in arguments: [String]) -> String? {
+        guard let fixtureFlag = arguments.firstIndex(of: "-fixture") else {
+            return nil
+        }
+        let valueIndex = arguments.index(after: fixtureFlag)
+        guard arguments.indices.contains(valueIndex) else { return nil }
+        return arguments[valueIndex]
+    }
+
     private func drawerTransition(edge: Edge) -> AnyTransition {
         reduceMotion ? .opacity : .move(edge: edge)
     }
@@ -215,6 +260,16 @@ struct PlayerShellView: View {
                     send(.openDrawer(.overview))
                 }
             }
+    }
+}
+
+private struct TranscriptSurfaceLandmark: View {
+    var body: some View {
+        Color.clear
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Transcript")
+            .accessibilityIdentifier("transcriptSurface")
+            .allowsHitTesting(false)
     }
 }
 

@@ -35,10 +35,12 @@ extension PlayerSessionState {
 
 extension GMMessage {
     static func fixture(id: UUID) -> GMMessage {
-        GMMessage(
+        let openingNarration = "Rain threads through the pines as the old road climbs toward the high pass, dark with water and old ash. Far below, a single lantern moves against the wind, vanishing behind each switchback before appearing again. Mara watches it climb and knows now that whoever carries it is following their trail."
+
+        return GMMessage(
             id: id,
             prose: [
-                "Rain threads through the pines as the old road climbs toward the high pass. Far below, a single lantern moves against the wind.",
+                openingNarration,
                 "Mara studies the light, one hand resting on the weathered map tucked beneath her cloak."
             ],
             dialogue: [
@@ -67,8 +69,8 @@ extension GMMessage {
                     title: nil,
                     subtitle: nil,
                     speaker: "Narrator",
-                    mood: nil,
-                    text: "Rain threads through the pines as the old road climbs toward the high pass. Far below, a single lantern moves against the wind."
+                    mood: "Neutral",
+                    text: openingNarration
                 ),
                 VisualNovelBeat(
                     id: UUID(uuidString: "00000000-0000-0000-0000-000000000103")!,

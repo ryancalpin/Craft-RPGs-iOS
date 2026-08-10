@@ -289,6 +289,73 @@ final class PlayerShellUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Summarize the road"].exists)
     }
 
+    func testVisualNovelAdvancesAndClosesIntoTranscript() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixture", "visual-novel"]
+        app.launch()
+
+        let titleCard = app.otherElements["visualNovelCard"]
+        XCTAssertTrue(titleCard.exists)
+        XCTAssertTrue(app.staticTexts["THE ASCENDANT ROAD"].exists)
+        XCTAssertTrue(app.staticTexts["A light where no traveler should be"].exists)
+        XCTAssertFalse(app.buttons["previousBeat"].exists)
+        XCTAssertGreaterThan(titleCard.frame.minY, app.frame.height * 0.58)
+        XCTAssertGreaterThan(titleCard.frame.maxY, app.frame.height * 0.84)
+
+        let narration = app.buttons["narrationControl"]
+        let close = app.buttons["closeVisualNovel"]
+        let next = app.buttons["nextBeat"]
+        for control in [narration, close, next] {
+            XCTAssertTrue(control.isHittable)
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+        }
+
+        let titleCapture = XCTAttachment(screenshot: app.screenshot())
+        titleCapture.name = "visual-novel-title"
+        titleCapture.lifetime = .keepAlways
+        add(titleCapture)
+
+        next.tap()
+        XCTAssertTrue(app.staticTexts["2 / 3"].waitForExistence(timeout: 1))
+
+        let dialogueCard = app.otherElements["visualNovelCard"]
+        XCTAssertTrue(app.buttons["previousBeat"].isHittable)
+        XCTAssertTrue(app.staticTexts["Neutral"].exists)
+        XCTAssertEqual(dialogueCard.frame.maxY, titleCard.frame.maxY, accuracy: 2)
+        XCTAssertLessThanOrEqual(dialogueCard.frame.minY, titleCard.frame.minY)
+        XCTAssertLessThan(dialogueCard.frame.minY, app.frame.height * 0.65)
+
+        let dialogueCapture = XCTAttachment(screenshot: app.screenshot())
+        dialogueCapture.name = "visual-novel-dialogue"
+        dialogueCapture.lifetime = .keepAlways
+        add(dialogueCapture)
+
+        close.tap()
+        XCTAssertTrue(
+            app.otherElements["transcriptSurface"].waitForExistence(timeout: 1)
+        )
+    }
+
+    func testLastVisualNovelBeatEndsSceneIntoPlayerTurn() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-fixture", "visual-novel"]
+        app.launch()
+
+        let next = app.buttons["nextBeat"]
+        XCTAssertTrue(next.waitForExistence(timeout: 2))
+        next.tap()
+        next.tap()
+        XCTAssertTrue(app.staticTexts["3 / 3"].waitForExistence(timeout: 1))
+        XCTAssertTrue(next.label.contains("End of scene — your move"))
+
+        next.tap()
+        XCTAssertTrue(
+            app.otherElements["transcriptSurface"].waitForExistence(timeout: 1)
+        )
+        XCTAssertFalse(app.otherElements["visualNovelCard"].exists)
+    }
+
     private func waitForDrawerPresentation(
         _ app: XCUIApplication,
         identifier: String

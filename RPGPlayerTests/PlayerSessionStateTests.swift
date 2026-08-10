@@ -20,6 +20,31 @@ final class PlayerSessionStateTests: XCTestCase {
         XCTAssertEqual(state.beatIndex, state.latestMessage.beats.count - 1)
     }
 
+    func testClosingVisualNovelPreservesCurrentBeat() {
+        var state = makeState()
+        state.reduce(.setMode(.visualNovel))
+        state.reduce(.nextBeat)
+
+        state.reduce(.setMode(.transcript))
+        XCTAssertEqual(state.beatIndex, 1)
+
+        state.reduce(.setMode(.visualNovel))
+        XCTAssertEqual(state.beatIndex, 1)
+    }
+
+    func testFinishingVisualNovelAtomicallyEntersPlayerTurn() {
+        var state = makeState()
+        state.reduce(.setMode(.visualNovel))
+        state.reduce(.nextBeat)
+        let finalBeat = state.beatIndex
+
+        state.reduce(.finishVisualNovel)
+
+        XCTAssertEqual(state.mode, .transcript)
+        XCTAssertEqual(state.beatIndex, finalBeat)
+        XCTAssertTrue(state.isTurnSheetPresented)
+    }
+
     func testCompletedGenerationInstallsMessageOnce() {
         var state = makeState()
         let message = makeMessage(id: UUID())
