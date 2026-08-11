@@ -1,0 +1,39 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-minimal",
+    "title": "Minimal Adventure",
+    "summary": "A sanitized project-world fixture.",
+    "system": "Rules Light",
+    "rootFolderID": "folder-root"
+  },
+  "fileTypes": [
+    {
+      "id": "note",
+      "name": "Note",
+      "recordKind": "record",
+      "fields": [
+        { "id": "title", "name": "Title", "valueType": "string", "required": true }
+      ]
+    }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-root", "name": "Adventure" }
+    ],
+    "records": [
+      {
+        "id": "record-intro",
+        "fileTypeID": "note",
+        "folderID": "folder-root",
+        "fields": [
+          { "id": "title", "value": "Arrival" }
+        ]
+      }
+    ],
+    "relationships": [],
+    "assets": [],
+    "maps": [],
+    "characters": []
+  }
+}

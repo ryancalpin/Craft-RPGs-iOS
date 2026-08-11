@@ -1,0 +1,25 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-unsupported-kind",
+    "title": "Future Record Kind",
+    "summary": "Unknown kinds remain available for review.",
+    "system": "Rules Light",
+    "rootFolderID": "folder-root"
+  },
+  "fileTypes": [
+    { "id": "future-widget", "name": "Future Widget", "recordKind": "futureWidget", "fields": [] }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-root", "name": "World" }
+    ],
+    "records": [
+      { "id": "record-future", "fileTypeID": "future-widget", "folderID": "folder-root", "fields": [] }
+    ],
+    "relationships": [],
+    "assets": [],
+    "maps": [],
+    "characters": []
+  }
+}

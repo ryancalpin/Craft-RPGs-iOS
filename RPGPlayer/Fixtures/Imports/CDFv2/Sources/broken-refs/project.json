@@ -1,0 +1,41 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-broken-refs",
+    "title": "Reviewable Broken Links",
+    "summary": "Non-root references are warnings.",
+    "system": "Rules Light",
+    "rootFolderID": "folder-root",
+    "currentSceneRecordID": "record-missing"
+  },
+  "fileTypes": [
+    { "id": "note", "name": "Note", "recordKind": "record", "fields": [] }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-root", "name": "World" },
+      { "id": "folder-orphan", "name": "Orphan", "parentID": "folder-missing" }
+    ],
+    "records": [
+      {
+        "id": "record-note",
+        "fileTypeID": "note",
+        "folderID": "folder-missing",
+        "fields": []
+      }
+    ],
+    "relationships": [
+      {
+        "id": "relationship-broken",
+        "kind": "related",
+        "sourceRecordID": "record-note",
+        "targetRecordIDs": ["record-missing"]
+      }
+    ],
+    "assets": [],
+    "maps": [
+      { "id": "map-orphan", "recordID": "record-missing" }
+    ],
+    "characters": []
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-missing-assets",
+    "title": "Missing Optional Art",
+    "summary": "The project remains reviewable.",
+    "system": "Rules Light",
+    "rootFolderID": "folder-root"
+  },
+  "fileTypes": [
+    { "id": "scene", "name": "Scene", "recordKind": "scene", "fields": [] }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-root", "name": "World" }
+    ],
+    "records": [
+      { "id": "record-scene", "fileTypeID": "scene", "folderID": "folder-root", "fields": [] }
+    ],
+    "relationships": [],
+    "assets": [
+      { "id": "asset-missing-file", "relativePath": "assets/missing.png", "mediaType": "image/png" }
+    ],
+    "maps": [
+      { "id": "map-missing", "recordID": "record-scene", "assetID": "asset-unknown" }
+    ],
+    "characters": []
+  }
+}

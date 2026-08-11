@@ -1,0 +1,26 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-duplicates",
+    "title": "Duplicate Record IDs",
+    "summary": "This import must be rejected.",
+    "system": "Rules Light",
+    "rootFolderID": "folder-root"
+  },
+  "fileTypes": [
+    { "id": "note", "name": "Note", "recordKind": "record", "fields": [] }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-root", "name": "World" }
+    ],
+    "records": [
+      { "id": "record-duplicate", "fileTypeID": "note", "folderID": "folder-root", "fields": [] },
+      { "id": "record-duplicate", "fileTypeID": "note", "folderID": "folder-root", "fields": [] }
+    ],
+    "relationships": [],
+    "assets": [],
+    "maps": [],
+    "characters": []
+  }
+}

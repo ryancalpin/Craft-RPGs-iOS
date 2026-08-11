@@ -1,0 +1,79 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-unknown",
+    "title": "Forward-Compatible World",
+    "summary": "Unknown keys remain available for re-export.",
+    "system": "Rules Light",
+    "rootFolderID": "folder-root",
+    "futureProject": { "edition": 3 }
+  },
+  "fileTypes": [
+    {
+      "id": "note",
+      "name": "Note",
+      "recordKind": "record",
+      "fields": [
+        {
+          "id": "title",
+          "name": "Title",
+          "valueType": "string",
+          "required": true,
+          "futureDescriptor": "keep"
+        }
+      ],
+      "futureFileType": true
+    }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-root", "name": "World", "futureFolder": 1 }
+    ],
+    "records": [
+      {
+        "id": "record-future",
+        "fileTypeID": "note",
+        "folderID": "folder-root",
+        "fields": [
+          { "id": "title", "value": "Forward", "futureField": 3 }
+        ],
+        "futureRecord": 2
+      }
+    ],
+    "relationships": [
+      {
+        "id": "relationship-self",
+        "kind": "echo",
+        "sourceRecordID": "record-future",
+        "targetRecordIDs": ["record-future"],
+        "futureRelationship": 4
+      }
+    ],
+    "assets": [
+      {
+        "id": "asset-token",
+        "relativePath": "assets/token.txt",
+        "mediaType": "text/plain",
+        "futureAsset": 5
+      }
+    ],
+    "maps": [
+      {
+        "id": "map-world",
+        "recordID": "record-future",
+        "assetID": "asset-token",
+        "futureMap": 6
+      }
+    ],
+    "characters": [
+      {
+        "id": "character-future",
+        "recordID": "record-future",
+        "portraitAssetID": "asset-token",
+        "futureCharacter": 7
+      }
+    ],
+    "futureContent": true
+  },
+  "futureDocument": { "format": "v3-preview" }
+}

@@ -1,0 +1,93 @@
+{
+  "cdfVersion": 2,
+  "project": {
+    "id": "project-greyhaven",
+    "title": "Fog Over Greyhaven",
+    "summary": "A harbor mystery prepared as project-world content.",
+    "system": "D20 Fantasy",
+    "rootFolderID": "folder-root",
+    "currentSceneRecordID": "record-scene",
+    "playerCharacterRecordID": "record-hero"
+  },
+  "fileTypes": [
+    {
+      "id": "scene",
+      "name": "Scene",
+      "recordKind": "scene",
+      "fields": [
+        { "id": "title", "name": "Title", "valueType": "string", "required": true },
+        { "id": "description", "name": "Description", "valueType": "string", "required": false }
+      ]
+    },
+    {
+      "id": "character",
+      "name": "Character",
+      "recordKind": "character",
+      "fields": [
+        { "id": "role", "name": "Role", "valueType": "string", "required": false },
+        { "id": "name", "name": "Name", "valueType": "string", "required": true }
+      ]
+    }
+  ],
+  "content": {
+    "folders": [
+      { "id": "folder-characters", "name": "Characters", "parentID": "folder-root" },
+      { "id": "folder-root", "name": "Greyhaven" }
+    ],
+    "records": [
+      {
+        "id": "record-scene",
+        "fileTypeID": "scene",
+        "folderID": "folder-root",
+        "fields": [
+          { "id": "title", "value": "The Fogbound Harbor" },
+          { "id": "description", "value": "Lanterns blur along the rain-black quay." }
+        ]
+      },
+      {
+        "id": "record-hero",
+        "fileTypeID": "character",
+        "folderID": "folder-characters",
+        "fields": [
+          { "id": "role", "value": "Player character" },
+          { "id": "name", "value": "Mara Venn" }
+        ]
+      },
+      {
+        "id": "record-guide",
+        "fileTypeID": "character",
+        "folderID": "folder-characters",
+        "fields": [
+          { "id": "name", "value": "Elias Grey" },
+          { "id": "role", "value": "Harbor guide" }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "id": "relationship-present",
+        "kind": "presentCharacters",
+        "sourceRecordID": "record-scene",
+        "targetRecordIDs": ["record-guide", "record-hero"]
+      },
+      {
+        "id": "relationship-knows",
+        "kind": "knows",
+        "sourceRecordID": "record-guide",
+        "targetRecordIDs": ["record-hero"]
+      }
+    ],
+    "assets": [
+      { "id": "asset-scene", "relativePath": "assets/greyhaven.txt", "mediaType": "text/plain" },
+      { "id": "asset-hero", "relativePath": "assets/hero.txt", "mediaType": "text/plain" },
+      { "id": "asset-guide", "relativePath": "assets/guide.txt", "mediaType": "text/plain" }
+    ],
+    "maps": [
+      { "id": "map-greyhaven", "recordID": "record-scene", "assetID": "asset-scene" }
+    ],
+    "characters": [
+      { "id": "character-hero", "recordID": "record-hero", "portraitAssetID": "asset-hero" },
+      { "id": "character-guide", "recordID": "record-guide", "portraitAssetID": "asset-guide" }
+    ]
+  }
+}

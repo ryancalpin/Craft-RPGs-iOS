@@ -15,7 +15,11 @@ targets:
   RPGPlayer:
     type: application
     platform: iOS
-    sources: [RPGPlayer, Shared]
+    sources:
+      - path: RPGPlayer
+        excludes:
+          - Fixtures/Imports/CDFv2
+      - path: Shared
     info:
       path: Config/App-Info.plist
       properties:
