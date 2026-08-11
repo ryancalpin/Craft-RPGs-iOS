@@ -166,6 +166,88 @@ public actor SwiftDataCampaignStore: CampaignStore {
         }
     }
 
+    public func saveProjectionCheckpoint(
+        _ checkpoint: ProjectionCheckpoint
+    ) throws {
+        let projectionData: Data
+        do {
+            projectionData = try encoder.encode(checkpoint.projection)
+        } catch {
+            throw CampaignStoreError.invalidProjectionCheckpoint(
+                sourceSequence: checkpoint.sourceSequence
+            )
+        }
+
+        do {
+            try modelContext.transaction {
+                let campaignID = checkpoint.campaignID
+                let sourceSequence = checkpoint.sourceSequence
+                let reducerSchemaVersion = checkpoint.reducerSchemaVersion
+                var descriptor = FetchDescriptor<ProjectionCheckpointRecord>(
+                    predicate: #Predicate {
+                        $0.campaignID == campaignID
+                            && $0.sourceSequence == sourceSequence
+                            && $0.reducerSchemaVersion == reducerSchemaVersion
+                    }
+                )
+                descriptor.fetchLimit = 1
+
+                if let existing = try modelContext.fetch(descriptor).first {
+                    existing.projectionData = projectionData
+                } else {
+                    modelContext.insert(
+                        ProjectionCheckpointRecord(
+                            checkpoint: checkpoint,
+                            projectionData: projectionData
+                        )
+                    )
+                }
+                try modelContext.save()
+            }
+        } catch let error as CampaignStoreError {
+            modelContext.rollback()
+            throw error
+        } catch {
+            modelContext.rollback()
+            throw CampaignStoreError.persistenceFailure
+        }
+    }
+
+    public func latestProjectionCheckpoint(
+        for campaignID: UUID,
+        reducerSchemaVersion: Int
+    ) throws -> ProjectionCheckpoint? {
+        var descriptor = FetchDescriptor<ProjectionCheckpointRecord>(
+            predicate: #Predicate {
+                $0.campaignID == campaignID
+                    && $0.reducerSchemaVersion == reducerSchemaVersion
+            },
+            sortBy: [SortDescriptor(\.sourceSequence, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+
+        guard let record = try modelContext.fetch(descriptor).first else {
+            return nil
+        }
+
+        do {
+            let projection = try decoder.decode(
+                CampaignProjection.self,
+                from: record.projectionData
+            )
+            return ProjectionCheckpoint(
+                campaignID: record.campaignID,
+                sourceSequence: record.sourceSequence,
+                reducerSchemaVersion: record.reducerSchemaVersion,
+                projection: projection
+            )
+        } catch {
+            throw CampaignStoreError.invalidProjectionCheckpoint(
+                sourceSequence: record.sourceSequence
+            )
+        }
+    }
+
     public func deleteCampaign(_ campaignID: UUID) throws {
         do {
             try modelContext.transaction {
@@ -177,6 +259,17 @@ public actor SwiftDataCampaignStore: CampaignStore {
                 )
                 for asset in try modelContext.fetch(assetDescriptor) {
                     modelContext.delete(asset)
+                }
+                let checkpointDescriptor =
+                    FetchDescriptor<ProjectionCheckpointRecord>(
+                        predicate: #Predicate {
+                            $0.campaignID == campaignID
+                        }
+                    )
+                for checkpoint in try modelContext.fetch(
+                    checkpointDescriptor
+                ) {
+                    modelContext.delete(checkpoint)
                 }
                 try modelContext.save()
             }

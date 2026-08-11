@@ -17,6 +17,15 @@ public protocol CampaignStore: Sendable {
 
     func importedAssets(for campaignID: UUID) async throws -> [ImportedAsset]
 
+    func saveProjectionCheckpoint(
+        _ checkpoint: ProjectionCheckpoint
+    ) async throws
+
+    func latestProjectionCheckpoint(
+        for campaignID: UUID,
+        reducerSchemaVersion: Int
+    ) async throws -> ProjectionCheckpoint?
+
     func deleteCampaign(_ campaignID: UUID) async throws
 }
 
@@ -56,6 +65,7 @@ public enum CampaignStoreError: Error, Equatable, Sendable {
     case unsupportedSchemaVersion(eventID: UUID, version: Int)
     case invalidPayload(eventID: UUID)
     case invalidStoredPayload(eventID: UUID)
+    case invalidProjectionCheckpoint(sourceSequence: Int64)
     case invalidImportedAssetURL(URL)
     case persistenceFailure
 }

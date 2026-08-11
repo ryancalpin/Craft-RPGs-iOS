@@ -341,6 +341,7 @@ private func makeStore() throws -> SwiftDataCampaignStore {
     let container = try ModelContainer(
         for: CampaignEventRecord.self,
         ImportedAssetRecord.self,
+        ProjectionCheckpointRecord.self,
         configurations: configuration
     )
     return SwiftDataCampaignStore(modelContainer: container)
