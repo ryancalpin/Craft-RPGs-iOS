@@ -37,13 +37,17 @@ struct OverviewDrawerView: View {
     let safeAreaTop: CGFloat
     let safeAreaBottom: CGFloat
     let close: () -> Void
+    var campaignDataContext: CampaignDataContext? = nil
+    var campaignDeleted: @MainActor () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
             OverviewDrawerHeader(
                 selectedSection: $state.selectedSection,
                 presentationSettled: presentationSettled,
-                close: close
+                close: close,
+                campaignDataContext: campaignDataContext,
+                campaignDeleted: campaignDeleted
             )
 
             Divider().overlay(PlayerTheme.panelStroke)
@@ -94,11 +98,14 @@ struct OverviewDrawerState {
 }
 
 private struct OverviewDrawerHeader: View {
-    @State private var settingsPresented = false
+    @State private var fixtureSettingsPresented = false
+    @State private var campaignDataPresented = false
 
     @Binding var selectedSection: OverviewDrawerView.Section
     let presentationSettled: Bool
     let close: () -> Void
+    let campaignDataContext: CampaignDataContext?
+    let campaignDeleted: @MainActor () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -111,7 +118,7 @@ private struct OverviewDrawerHeader: View {
                 systemName: "gearshape",
                 label: "Campaign settings",
                 identifier: "overviewDrawerSettings",
-                action: { settingsPresented = true }
+                action: openSettings
             )
 
             DrawerHeaderButton(
@@ -123,10 +130,28 @@ private struct OverviewDrawerHeader: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 2)
-        .alert("Campaign settings", isPresented: $settingsPresented) {
+        .alert("Campaign settings", isPresented: $fixtureSettingsPresented) {
             Button("Done", role: .cancel) {}
         } message: {
             Text("Settings are unavailable in this local fixture.")
+        }
+        .sheet(isPresented: $campaignDataPresented) {
+            if let campaignDataContext {
+                NavigationStack {
+                    CampaignDataView(
+                        context: campaignDataContext,
+                        campaignDeleted: campaignDeleted
+                    )
+                }
+            }
+        }
+    }
+
+    private func openSettings() {
+        if campaignDataContext == nil {
+            fixtureSettingsPresented = true
+        } else {
+            campaignDataPresented = true
         }
     }
 }

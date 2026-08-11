@@ -13,7 +13,7 @@ struct RPGPlayerApp: App {
 private struct RPGPlayerRootView: View {
     private enum Destination {
         case library(ImportCoordinator)
-        case player
+        case player(CampaignDataContext?, ImportCoordinator?)
     }
 
     @State private var destination: Destination
@@ -22,7 +22,7 @@ private struct RPGPlayerRootView: View {
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
         self.arguments = arguments
         if arguments.contains("-fixture") {
-            _destination = State(initialValue: .player)
+            _destination = State(initialValue: .player(nil, nil))
         } else {
             _destination = State(
                 initialValue: .library(
@@ -35,11 +35,21 @@ private struct RPGPlayerRootView: View {
     var body: some View {
         switch destination {
         case .library(let coordinator):
-            ImportLibraryHostView(coordinator: coordinator) {
-                destination = .player
+            ImportLibraryHostView(coordinator: coordinator) { campaignID in
+                destination = .player(
+                    coordinator.campaignDataContext(for: campaignID),
+                    coordinator
+                )
             }
-        case .player:
-            PlayerShellView(arguments: arguments)
+        case .player(let campaignDataContext, let coordinator):
+            PlayerShellView(
+                arguments: arguments,
+                campaignDataContext: campaignDataContext
+            ) {
+                if let coordinator {
+                    destination = .library(coordinator)
+                }
+            }
         }
     }
 }

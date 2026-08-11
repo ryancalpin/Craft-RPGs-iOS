@@ -12,7 +12,7 @@ struct ImportLibraryHostView: View {
     @State private var presentedSheet: ImportSheetDestination?
 
     let coordinator: ImportCoordinator
-    let launchCampaign: () -> Void
+    let launchCampaign: (UUID) -> Void
 
     var body: some View {
         NavigationStack {
@@ -25,8 +25,8 @@ struct ImportLibraryHostView: View {
                 .presentationSizing(.form)
         }
         .onChange(of: coordinator.committedCampaignID) { _, campaignID in
-            if campaignID != nil {
-                launchCampaign()
+            if let campaignID {
+                launchCampaign(campaignID)
             }
         }
         .preferredColorScheme(.dark)

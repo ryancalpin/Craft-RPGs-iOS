@@ -23,9 +23,17 @@ struct PlayerShellView: View {
     private let forcesReduceMotionForTesting: Bool
     private let forcesReduceTransparencyForTesting: Bool
     private let exposesAccessibilityEnvironmentForTesting: Bool
+    private let campaignDataContext: CampaignDataContext?
+    private let campaignDeleted: @MainActor () -> Void
 
-    init(arguments: [String] = ProcessInfo.processInfo.arguments) {
+    init(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        campaignDataContext: CampaignDataContext? = nil,
+        campaignDeleted: @escaping @MainActor () -> Void = {}
+    ) {
         turnStreaming = SimulatedTurnStreaming(delay: .milliseconds(1_000))
+        self.campaignDataContext = campaignDataContext
+        self.campaignDeleted = campaignDeleted
         var initialState = PlayerSessionState.fixture
         var initialGenerationSteps: [String] = []
         switch Self.fixtureName(in: arguments) {
@@ -192,7 +200,9 @@ struct PlayerShellView: View {
                             presentationSettled: drawerPresentationSettled,
                             safeAreaTop: safeAreaTop,
                             safeAreaBottom: safeAreaBottom,
-                            close: closeDrawer
+                            close: closeDrawer,
+                            campaignDataContext: campaignDataContext,
+                            campaignDeleted: campaignDeleted
                         )
                             .frame(
                                 width: PlayerLayoutMetrics.overviewDrawerWidth(

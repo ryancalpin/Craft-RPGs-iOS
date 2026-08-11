@@ -79,13 +79,22 @@ final class ImportCoordinator {
 
     private let pipeline: ImportPipeline
     private let fixture: ImportFlowFixture?
+    private let campaignDataManager: CampaignDataManager
+    private let recoveryBundleWriter: RecoveryBundleWriter
     private var preparation: PreparedCampaignImport?
     private var pendingStagedImport: StagedImport?
     private var workTask: Task<Void, Never>?
 
-    init(pipeline: ImportPipeline, fixture: ImportFlowFixture? = nil) {
+    init(
+        pipeline: ImportPipeline,
+        fixture: ImportFlowFixture? = nil,
+        campaignDataManager: CampaignDataManager,
+        recoveryBundleWriter: RecoveryBundleWriter
+    ) {
         self.pipeline = pipeline
         self.fixture = fixture
+        self.campaignDataManager = campaignDataManager
+        self.recoveryBundleWriter = recoveryBundleWriter
     }
 
     static func live(arguments: [String]) -> ImportCoordinator {
@@ -102,12 +111,24 @@ final class ImportCoordinator {
             preconditionFailure("Unable to open the campaign store")
         }
 
+        let store = SwiftDataCampaignStore(modelContainer: container)
         let fixture = ImportFlowFixture(arguments: arguments)
         return ImportCoordinator(
             pipeline: ImportPipeline(
-                store: SwiftDataCampaignStore(modelContainer: container)
+                store: store
             ),
-            fixture: fixture
+            fixture: fixture,
+            campaignDataManager: CampaignDataManager(store: store),
+            recoveryBundleWriter: RecoveryBundleWriter(store: store)
+        )
+    }
+
+    func campaignDataContext(for campaignID: UUID) -> CampaignDataContext {
+        CampaignDataContext(
+            campaignID: campaignID,
+            campaignTitle: review?.title ?? "Campaign",
+            manager: campaignDataManager,
+            recoveryBundleWriter: recoveryBundleWriter
         )
     }
 

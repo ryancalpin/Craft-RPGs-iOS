@@ -26,6 +26,11 @@ public protocol CampaignStore: Sendable {
         reducerSchemaVersion: Int
     ) async throws -> ProjectionCheckpoint?
 
+    func restoreCampaign(
+        events: [CampaignEvent],
+        assets: [ImportedAsset]
+    ) async throws
+
     func deleteCampaign(_ campaignID: UUID) async throws
 }
 
@@ -39,6 +44,13 @@ public extension CampaignStore {
             assets: [],
             expectedSequence: expectedSequence
         )
+    }
+
+    func restoreCampaign(
+        events: [CampaignEvent],
+        assets: [ImportedAsset]
+    ) async throws {
+        throw CampaignStoreError.persistenceFailure
     }
 }
 
@@ -67,5 +79,7 @@ public enum CampaignStoreError: Error, Equatable, Sendable {
     case invalidStoredPayload(eventID: UUID)
     case invalidProjectionCheckpoint(sourceSequence: Int64)
     case invalidImportedAssetURL(URL)
+    case invalidRestoreSequence(expected: Int64, actual: Int64)
+    case campaignAlreadyExists(UUID)
     case persistenceFailure
 }

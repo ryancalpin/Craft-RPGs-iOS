@@ -248,6 +248,93 @@ public actor SwiftDataCampaignStore: CampaignStore {
         }
     }
 
+    public func restoreCampaign(
+        events: [CampaignEvent],
+        assets: [ImportedAsset]
+    ) async throws {
+        guard let first = events.first else {
+            return
+        }
+
+        guard events.allSatisfy({ $0.campaignID == first.campaignID }) else {
+            throw CampaignStoreError.mixedCampaignBatch
+        }
+        if let unsupported = events.first(where: { $0.schemaVersion != 1 }) {
+            throw CampaignStoreError.unsupportedSchemaVersion(
+                eventID: unsupported.id,
+                version: unsupported.schemaVersion
+            )
+        }
+        for (index, event) in events.enumerated() {
+            let expected = Int64(index) + 1
+            guard event.sequence == expected else {
+                throw CampaignStoreError.invalidRestoreSequence(
+                    expected: expected,
+                    actual: event.sequence
+                )
+            }
+        }
+        for asset in assets {
+            guard Self.isAppRelative(asset.appRelativeURL) else {
+                throw CampaignStoreError.invalidImportedAssetURL(
+                    asset.appRelativeURL
+                )
+            }
+        }
+
+        var eventIDs = Set<UUID>()
+        for event in events where eventIDs.insert(event.id).inserted == false {
+            throw CampaignStoreError.duplicateEventID(event.id)
+        }
+
+        let payloads = try events.map { event in
+            do {
+                return try encoder.encode(event.payload)
+            } catch {
+                throw CampaignStoreError.invalidPayload(eventID: event.id)
+            }
+        }
+
+        do {
+            try modelContext.transaction {
+                let campaignID = first.campaignID
+                let existingEvents = try eventRecords(for: campaignID)
+                let assetDescriptor = FetchDescriptor<ImportedAssetRecord>(
+                    predicate: #Predicate { $0.campaignID == campaignID }
+                )
+                guard existingEvents.isEmpty,
+                      try modelContext.fetchCount(assetDescriptor) == 0
+                else {
+                    throw CampaignStoreError.campaignAlreadyExists(campaignID)
+                }
+
+                for (event, payloadData) in zip(events, payloads) {
+                    modelContext.insert(
+                        CampaignEventRecord(
+                            event: event,
+                            payloadData: payloadData
+                        )
+                    )
+                }
+                for asset in assets {
+                    modelContext.insert(
+                        ImportedAssetRecord(
+                            asset: asset,
+                            campaignID: campaignID
+                        )
+                    )
+                }
+                try modelContext.save()
+            }
+        } catch let error as CampaignStoreError {
+            modelContext.rollback()
+            throw error
+        } catch {
+            modelContext.rollback()
+            throw CampaignStoreError.persistenceFailure
+        }
+    }
+
     public func deleteCampaign(_ campaignID: UUID) throws {
         do {
             try modelContext.transaction {
