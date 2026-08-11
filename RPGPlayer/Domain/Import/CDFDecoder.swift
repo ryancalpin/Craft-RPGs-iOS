@@ -16,6 +16,30 @@ public struct CDFDecoder: Sendable {
     public init() {}
 
     public func decode(_ stagedImport: StagedImport) throws -> CDFDecodeResult {
+        let normalized = try decodeProject(stagedImport)
+        let warnings = ReferenceValidator().warnings(
+            for: normalized,
+            stagedRelativePaths: Set(
+                stagedImport.files.map(\.relativePath)
+            )
+        )
+        return CDFDecodeResult(
+            project: normalized,
+            report: ImportReport(
+                projectTitle: normalized.title,
+                recordCount: normalized.records.count,
+                assetCount: normalized.assets.count,
+                warnings: warnings,
+                fatalErrors: []
+            )
+        )
+    }
+
+    /// Decodes and normalizes CDF structure without producing review issues.
+    /// Import orchestration owns the later validation/report boundary.
+    public func decodeProject(
+        _ stagedImport: StagedImport
+    ) throws -> NormalizedProject {
         guard stagedImport.files.contains(where: {
             $0.relativePath == "project.json"
         }) else {
@@ -84,22 +108,7 @@ public struct CDFDecoder: Sendable {
             )
         }
 
-        let warnings = ReferenceValidator().warnings(
-            for: normalized,
-            stagedRelativePaths: Set(
-                stagedImport.files.map(\.relativePath)
-            )
-        )
-        return CDFDecodeResult(
-            project: normalized,
-            report: ImportReport(
-                projectTitle: normalized.title,
-                recordCount: normalized.records.count,
-                assetCount: normalized.assets.count,
-                warnings: warnings,
-                fatalErrors: []
-            )
-        )
+        return normalized
     }
 
     private func validateRootMetadata(_ project: CDFProject) throws {
