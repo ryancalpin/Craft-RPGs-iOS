@@ -1,0 +1,39 @@
+{
+  "id": "00000000-0000-0000-0000-000000000004",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 4,
+  "requestID": "00000000-0000-0000-0000-000000000201",
+  "timestamp": "2026-08-09T12:02:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "gmMessageCommitted",
+    "data": {
+      "messageID": "00000000-0000-0000-0000-000000000301",
+      "narration": ["The lantern turns beneath the old arch."],
+      "dialogue": [
+        {
+          "id": "00000000-0000-0000-0000-000000000302",
+          "speaker": "The Guide",
+          "mood": "Hushed",
+          "text": "This way. Quietly."
+        }
+      ],
+      "beats": [
+        {
+          "id": "00000000-0000-0000-0000-000000000303",
+          "kind": "narration",
+          "speaker": "Narrator",
+          "text": "The lantern turns beneath the old arch."
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000304",
+          "kind": "dialogue",
+          "speaker": "The Guide",
+          "mood": "Hushed",
+          "text": "This way. Quietly."
+        }
+      ],
+      "finalQuestion": "What do you do?"
+    }
+  }
+}

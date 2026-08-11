@@ -1,0 +1,15 @@
+{
+  "id": "00000000-0000-0000-0000-000000000002",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 2,
+  "requestID": "00000000-0000-0000-0000-000000000201",
+  "timestamp": "2026-08-09T12:01:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "playerActionSubmitted",
+    "data": {
+      "action": "Follow the lantern trail.",
+      "additionalContext": "Stay out of sight."
+    }
+  }
+}

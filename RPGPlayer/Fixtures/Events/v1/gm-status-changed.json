@@ -1,0 +1,15 @@
+{
+  "id": "00000000-0000-0000-0000-000000000003",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 3,
+  "requestID": "00000000-0000-0000-0000-000000000201",
+  "timestamp": "2026-08-09T12:01:05Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "gmStatusChanged",
+    "data": {
+      "phase": "writingScene",
+      "sanitizedDetail": "Prepared the next story beat."
+    }
+  }
+}

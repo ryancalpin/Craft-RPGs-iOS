@@ -1,0 +1,19 @@
+{
+  "id": "00000000-0000-0000-0000-000000000005",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 5,
+  "requestID": "00000000-0000-0000-0000-000000000201",
+  "timestamp": "2026-08-09T12:02:05Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "recordPatched",
+    "data": {
+      "recordID": "character-guide",
+      "changes": {
+        "trust": 2,
+        "present": true,
+        "location": "old-arch"
+      }
+    }
+  }
+}

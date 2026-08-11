@@ -1,0 +1,20 @@
+{
+  "id": "00000000-0000-0000-0000-000000000001",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 1,
+  "requestID": "00000000-0000-0000-0000-000000000200",
+  "timestamp": "2026-08-09T12:00:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "campaignImported",
+    "data": {
+      "projectID": "project-alpha",
+      "campaignTitle": "Fog Over Greyhaven",
+      "manifestHash": "sha256:fixture-manifest",
+      "futureImporterMetadata": {
+        "format": "cdf-v3-preview",
+        "preserve": true
+      }
+    }
+  }
+}

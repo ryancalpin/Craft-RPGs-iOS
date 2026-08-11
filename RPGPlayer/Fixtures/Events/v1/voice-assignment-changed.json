@@ -1,0 +1,16 @@
+{
+  "id": "00000000-0000-0000-0000-000000000009",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 9,
+  "requestID": "00000000-0000-0000-0000-000000000202",
+  "timestamp": "2026-08-09T12:04:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "voiceAssignmentChanged",
+    "data": {
+      "characterID": "character-guide",
+      "voiceID": "voice-warm-01",
+      "source": "manual"
+    }
+  }
+}

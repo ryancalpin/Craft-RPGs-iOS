@@ -1,0 +1,16 @@
+{
+  "id": "00000000-0000-0000-0000-000000000008",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 8,
+  "requestID": "00000000-0000-0000-0000-000000000201",
+  "timestamp": "2026-08-09T12:03:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "sceneChanged",
+    "data": {
+      "sceneID": "old-arch",
+      "title": "The Old Arch",
+      "summary": "A rain-dark arch overlooking the lower ward."
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "00000000-0000-0000-0000-000000000010",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 10,
+  "requestID": "00000000-0000-0000-0000-000000000203",
+  "timestamp": "2026-08-09T12:05:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "turnCancelled",
+    "data": {
+      "reason": "Stopped by player"
+    }
+  }
+}

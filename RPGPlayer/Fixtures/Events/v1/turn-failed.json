@@ -1,0 +1,16 @@
+{
+  "id": "00000000-0000-0000-0000-000000000011",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 11,
+  "requestID": "00000000-0000-0000-0000-000000000204",
+  "timestamp": "2026-08-09T12:06:00Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "turnFailed",
+    "data": {
+      "category": "connectivity",
+      "message": "The turn could not finish while offline.",
+      "isRetryable": true
+    }
+  }
+}

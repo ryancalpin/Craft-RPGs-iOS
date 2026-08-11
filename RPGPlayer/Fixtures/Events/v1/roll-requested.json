@@ -1,0 +1,16 @@
+{
+  "id": "00000000-0000-0000-0000-000000000006",
+  "campaignID": "00000000-0000-0000-0000-000000000100",
+  "sequence": 6,
+  "requestID": "00000000-0000-0000-0000-000000000201",
+  "timestamp": "2026-08-09T12:02:10Z",
+  "schemaVersion": 1,
+  "payload": {
+    "type": "rollRequested",
+    "data": {
+      "rollID": "00000000-0000-0000-0000-000000000401",
+      "expression": "1d20+3",
+      "prompt": "Slip past the sentry"
+    }
+  }
+}
