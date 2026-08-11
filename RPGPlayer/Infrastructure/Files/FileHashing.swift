@@ -1,6 +1,11 @@
 import CryptoKit
 import Foundation
 
+public struct StreamedFileDigest: Equatable, Sendable {
+    public let sha256: String
+    public let byteCount: Int64
+}
+
 public enum FileHashing {
     public static let chunkSize = 64 * 1_024
 
@@ -20,8 +25,9 @@ public enum FileHashing {
         from source: URL,
         to destination: URL,
         maximumBytes: Int64,
+        maximumAggregateBytesRemaining: Int64 = .max,
         progress: @Sendable (Int64) -> Void
-    ) throws -> String {
+    ) throws -> StreamedFileDigest {
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -52,13 +58,19 @@ public enum FileHashing {
                     source.lastPathComponent
                 )
             }
+            guard nextByteCount <= maximumAggregateBytesRemaining else {
+                throw ImportValidationError.totalExpandedSizeExceeded
+            }
             try output.write(contentsOf: data)
             hasher.update(data: data)
             copiedBytes = nextByteCount
             progress(Int64(data.count))
         }
         try Task.checkCancellation()
-        return hexadecimal(hasher.finalize())
+        return StreamedFileDigest(
+            sha256: hexadecimal(hasher.finalize()),
+            byteCount: copiedBytes
+        )
     }
 
     public static func hexadecimal<D: Sequence>(_ digest: D) -> String

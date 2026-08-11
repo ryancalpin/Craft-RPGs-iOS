@@ -18,6 +18,7 @@ public struct ImportStager: Sendable {
     private let applicationSupportDirectory: URL
     private let limits: ImportLimits
     private let identifierProvider: @Sendable () -> UUID
+    private let fileSizeProvider: @Sendable (URL, Int64) -> Int64
 
     public init(
         applicationSupportDirectory: URL? = nil,
@@ -31,6 +32,19 @@ public struct ImportStager: Sendable {
             )[0]
         self.limits = limits
         self.identifierProvider = identifierProvider
+        fileSizeProvider = { _, recordedSize in recordedSize }
+    }
+
+    init(
+        applicationSupportDirectory: URL,
+        limits: ImportLimits,
+        identifierProvider: @escaping @Sendable () -> UUID,
+        fileSizeProvider: @escaping @Sendable (URL, Int64) -> Int64
+    ) {
+        self.applicationSupportDirectory = applicationSupportDirectory
+        self.limits = limits
+        self.identifierProvider = identifierProvider
+        self.fileSizeProvider = fileSizeProvider
     }
 
     public func stage(
@@ -68,6 +82,7 @@ public struct ImportStager: Sendable {
         )
         return try withOwnedStagingDirectory { identifier, stageRoot in
             var files: [StagedFile] = []
+            var actualTotalBytes: Int64 = 0
             for entry in validated {
                 try Task.checkCancellation()
                 guard let item = itemsByPath[entry.descriptor.path] else {
@@ -86,17 +101,24 @@ public struct ImportStager: Sendable {
                         entry.descriptor.path
                     )
                 case .file:
-                    let hash = try FileHashing.copyAndHash(
+                    let digest = try FileHashing.copyAndHash(
                         from: item.sourceURL,
                         to: destination,
                         maximumBytes: limits.maximumFileBytes,
+                        maximumAggregateBytesRemaining: try remainingTotalBytes(
+                            after: actualTotalBytes
+                        ),
                         progress: progress
+                    )
+                    try addToActualTotal(
+                        digest.byteCount,
+                        total: &actualTotalBytes
                     )
                     files.append(
                         StagedFile(
                             relativePath: entry.canonicalPath.string,
-                            byteCount: entry.descriptor.uncompressedSize,
-                            sha256: hash
+                            byteCount: digest.byteCount,
+                            sha256: digest.sha256
                         )
                     )
                 }
@@ -125,6 +147,7 @@ public struct ImportStager: Sendable {
 
         return try withOwnedStagingDirectory { identifier, stageRoot in
             var files: [StagedFile] = []
+            var actualTotalBytes: Int64 = 0
             for validatedEntry in validated {
                 try Task.checkCancellation()
                 guard let archiveEntry = entriesByPath[
@@ -147,18 +170,25 @@ public struct ImportStager: Sendable {
                         validatedEntry.descriptor.path
                     )
                 case .file:
-                    let hash = try extractAndHash(
+                    let digest = try extractAndHash(
                         archiveEntry,
                         from: archive,
                         to: destination,
                         maximumBytes: limits.maximumFileBytes,
+                        maximumAggregateBytesRemaining: try remainingTotalBytes(
+                            after: actualTotalBytes
+                        ),
                         progress: progress
+                    )
+                    try addToActualTotal(
+                        digest.byteCount,
+                        total: &actualTotalBytes
                     )
                     files.append(
                         StagedFile(
                             relativePath: validatedEntry.canonicalPath.string,
-                            byteCount: validatedEntry.descriptor.uncompressedSize,
-                            sha256: hash
+                            byteCount: digest.byteCount,
+                            sha256: digest.sha256
                         )
                     )
                 }
@@ -179,7 +209,8 @@ public struct ImportStager: Sendable {
         let attributes = try FileManager.default.attributesOfItem(
             atPath: sourceURL.path
         )
-        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        let recordedSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        let size = fileSizeProvider(sourceURL, recordedSize)
         let mode = (attributes[.posixPermissions] as? NSNumber)?.uint16Value
             ?? 0o644
         let descriptor = ArchiveEntryDescriptor(
@@ -195,11 +226,17 @@ public struct ImportStager: Sendable {
         }
         return try withOwnedStagingDirectory { identifier, stageRoot in
             let destination = try entry.canonicalPath.url(under: stageRoot)
-            let hash = try FileHashing.copyAndHash(
+            let digest = try FileHashing.copyAndHash(
                 from: sourceURL,
                 to: destination,
                 maximumBytes: limits.maximumFileBytes,
+                maximumAggregateBytesRemaining: limits.maximumTotalExpandedBytes,
                 progress: progress
+            )
+            var actualTotalBytes: Int64 = 0
+            try addToActualTotal(
+                digest.byteCount,
+                total: &actualTotalBytes
             )
             return StagedImport(
                 identifier: identifier,
@@ -207,8 +244,8 @@ public struct ImportStager: Sendable {
                 files: [
                     StagedFile(
                         relativePath: entry.canonicalPath.string,
-                        byteCount: size,
-                        sha256: hash
+                        byteCount: digest.byteCount,
+                        sha256: digest.sha256
                     )
                 ]
             )
@@ -243,7 +280,7 @@ public struct ImportStager: Sendable {
             let itemType = attributes[.type] as? FileAttributeType
             let mode = (attributes[.posixPermissions] as? NSNumber)?.uint16Value
                 ?? 0o644
-            let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            let recordedSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
             let kind: ArchiveEntryDescriptor.Kind
             if itemType == .typeSymbolicLink {
                 guard CanonicalPath.resolvesInside(itemURL, root: sourceRoot) else {
@@ -259,6 +296,9 @@ public struct ImportStager: Sendable {
             } else {
                 kind = .file
             }
+            let size = kind == .directory
+                ? 0
+                : fileSizeProvider(itemURL, recordedSize)
             items.append(
                 SourceItem(
                     sourceURL: itemURL,
@@ -308,8 +348,9 @@ public struct ImportStager: Sendable {
         from archive: Archive,
         to destination: URL,
         maximumBytes: Int64,
+        maximumAggregateBytesRemaining: Int64,
         progress: @Sendable (Int64) -> Void
-    ) throws -> String {
+    ) throws -> StreamedFileDigest {
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -334,13 +375,40 @@ public struct ImportStager: Sendable {
             guard overflow == false, nextByteCount <= maximumBytes else {
                 throw ImportValidationError.fileTooLarge(entry.path)
             }
+            guard nextByteCount <= maximumAggregateBytesRemaining else {
+                throw ImportValidationError.totalExpandedSizeExceeded
+            }
             try output.write(contentsOf: chunk)
             hasher.update(data: chunk)
             extractedBytes = nextByteCount
             progress(Int64(chunk.count))
         }
         try Task.checkCancellation()
-        return FileHashing.hexadecimal(hasher.finalize())
+        return StreamedFileDigest(
+            sha256: FileHashing.hexadecimal(hasher.finalize()),
+            byteCount: extractedBytes
+        )
+    }
+
+    private func remainingTotalBytes(after actualTotalBytes: Int64) throws -> Int64 {
+        let (remaining, overflow) = limits.maximumTotalExpandedBytes
+            .subtractingReportingOverflow(actualTotalBytes)
+        guard overflow == false, remaining >= 0 else {
+            throw ImportValidationError.totalExpandedSizeExceeded
+        }
+        return remaining
+    }
+
+    private func addToActualTotal(
+        _ byteCount: Int64,
+        total: inout Int64
+    ) throws {
+        let (nextTotal, overflow) = total.addingReportingOverflow(byteCount)
+        guard overflow == false,
+              nextTotal <= limits.maximumTotalExpandedBytes else {
+            throw ImportValidationError.totalExpandedSizeExceeded
+        }
+        total = nextTotal
     }
 
     private func withOwnedStagingDirectory<Result>(

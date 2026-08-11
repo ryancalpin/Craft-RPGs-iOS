@@ -295,12 +295,92 @@ struct ImportStagerTests {
         let staged = try await stager.stage(.archive(archiveURL))
 
         #expect(staged.files.map(\.relativePath) == ["project.json"])
+        #expect(staged.files.first?.byteCount == Int64(contents.count))
         #expect(
             try Data(
                 contentsOf: staged.directoryURL
                     .appendingPathComponent("project.json")
             ) == contents
         )
+    }
+
+    @Test
+    func stagedByteCountUsesActualStreamedBytesNotPreflightMetadata() async throws {
+        let workspace = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let source = workspace.appendingPathComponent("Source", isDirectory: true)
+        let contents = Data("four".utf8)
+        try FileManager.default.createDirectory(
+            at: source,
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: source.appendingPathComponent("project.json"))
+        let stager = ImportStager(
+            applicationSupportDirectory: workspace.appendingPathComponent(
+                "ApplicationSupport",
+                isDirectory: true
+            ),
+            limits: limits(
+                maximumTotalExpandedBytes: 10,
+                maximumFileBytes: 10
+            ),
+            identifierProvider: { UUID() },
+            fileSizeProvider: { _, _ in 1 }
+        )
+
+        let staged = try await stager.stage(.folder(source))
+
+        #expect(staged.files.first?.byteCount == Int64(contents.count))
+    }
+
+    @Test
+    func actualStreamedAggregateCannotExceedTotalLimitAndCleansItsStage() async throws {
+        let workspace = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let source = workspace.appendingPathComponent("Source", isDirectory: true)
+        let support = workspace.appendingPathComponent(
+            "ApplicationSupport",
+            isDirectory: true
+        )
+        let identifier = try #require(
+            UUID(uuidString: "00000000-0000-0000-0000-000000000444")
+        )
+        try FileManager.default.createDirectory(
+            at: source,
+            withIntermediateDirectories: true
+        )
+        try Data("four".utf8).write(
+            to: source.appendingPathComponent("one.json")
+        )
+        try Data("more".utf8).write(
+            to: source.appendingPathComponent("two.json")
+        )
+        let stager = ImportStager(
+            applicationSupportDirectory: support,
+            limits: limits(
+                maximumTotalExpandedBytes: 6,
+                maximumFileBytes: 10
+            ),
+            identifierProvider: { identifier },
+            fileSizeProvider: { _, _ in 1 }
+        )
+        let ownedStage = support
+            .appendingPathComponent("ImportStaging", isDirectory: true)
+            .appendingPathComponent(
+                identifier.uuidString.lowercased(),
+                isDirectory: true
+            )
+
+        do {
+            _ = try await stager.stage(.folder(source))
+            Issue.record("Expected actual streamed bytes to exceed the total limit.")
+        } catch let error as ImportValidationError {
+            #expect(error == .totalExpandedSizeExceeded)
+        } catch {
+            Issue.record("Wrong error thrown: \(error)")
+        }
+
+        #expect(FileManager.default.fileExists(atPath: ownedStage.path) == false)
     }
 
     @Test
