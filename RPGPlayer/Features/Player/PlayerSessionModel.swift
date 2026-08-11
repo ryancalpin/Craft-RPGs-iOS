@@ -144,7 +144,7 @@ final class PlayerSessionModel {
         )
     }
 
-    func send(_ action: PlayerAction) async throws {
+    func send(_ action: PlayerSessionAction) async throws {
         guard let currentState = state else { return }
         var candidate = currentState
         candidate.reduce(action)

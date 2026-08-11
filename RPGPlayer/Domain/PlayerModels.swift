@@ -18,20 +18,38 @@ struct DialogueBlock: Identifiable, Equatable, Sendable {
     let text: String
 }
 
-struct VisualNovelBeat: Identifiable, Equatable, Sendable {
-    enum Kind: Equatable, Sendable {
+public struct VisualNovelBeat: Identifiable, Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
         case title
         case narration
         case dialogue
     }
 
-    let id: UUID
-    let kind: Kind
-    let title: String?
-    let subtitle: String?
-    let speaker: String?
-    let mood: String?
-    let text: String
+    public let id: UUID
+    public let kind: Kind
+    public let title: String?
+    public let subtitle: String?
+    public let speaker: String?
+    public let mood: String?
+    public let text: String
+
+    public init(
+        id: UUID,
+        kind: Kind,
+        title: String?,
+        subtitle: String?,
+        speaker: String?,
+        mood: String?,
+        text: String
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.subtitle = subtitle
+        self.speaker = speaker
+        self.mood = mood
+        self.text = text
+    }
 }
 
 struct GMMessage: Identifiable, Equatable, Sendable {

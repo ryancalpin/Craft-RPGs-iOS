@@ -533,7 +533,7 @@ struct PlayerShellView: View {
         effectiveReduceMotion ? .opacity : .move(edge: .bottom)
     }
 
-    private func send(_ action: PlayerAction) {
+    private func send(_ action: PlayerSessionAction) {
         if let sessionModel {
             Task { @MainActor in
                 try? await sessionModel.send(action)

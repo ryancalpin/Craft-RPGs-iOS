@@ -16,7 +16,7 @@ struct PlayerSessionState: Equatable, Sendable {
         messages[messages.count - 1]
     }
 
-    mutating func reduce(_ action: PlayerAction) {
+    mutating func reduce(_ action: PlayerSessionAction) {
         switch action {
         case .openDrawer(let value):
             drawer = value
@@ -62,7 +62,7 @@ struct PlayerSessionState: Equatable, Sendable {
     }
 }
 
-enum PlayerAction: Equatable, Sendable {
+enum PlayerSessionAction: Equatable, Sendable {
     case openDrawer(PlayerDrawer)
     case closeDrawer
     case setMode(PlayerMode)

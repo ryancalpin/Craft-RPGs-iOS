@@ -19,6 +19,7 @@ targets:
       - path: RPGPlayer
         excludes:
           - Fixtures/Imports/CDFv2
+          - Fixtures/Providers
       - path: Shared
     info:
       path: Config/App-Info.plist
