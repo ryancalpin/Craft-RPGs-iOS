@@ -1,8 +1,68 @@
 import Foundation
+import SwiftData
 import Testing
+import ZIPFoundation
 @testable import RPGPlayer
 
 struct ImportCommitTests {
+    @Test
+    func validCDFv2ZIPCommitsTheSameSemanticOutcomeAsFolderImport() async throws {
+        let fixture = try ArchiveImportAcceptanceFixture()
+        defer { fixture.remove() }
+        let archiveURL = try fixture.makeArchive()
+
+        let folderOutcome = try await importAcceptanceOutcome(
+            source: .folder(fixture.fullSourceURL),
+            applicationSupportURL: fixture.folderApplicationSupportURL
+        )
+        let archiveOutcome = try await importAcceptanceOutcome(
+            source: .archive(archiveURL),
+            applicationSupportURL: fixture.archiveApplicationSupportURL
+        )
+
+        #expect(
+            archiveOutcome.stagedRelativePaths
+                == [
+                    "assets/greyhaven.txt",
+                    "assets/guide.txt",
+                    "assets/hero.txt",
+                    "project.json"
+                ]
+        )
+        #expect(archiveOutcome.project == folderOutcome.project)
+        #expect(archiveOutcome.project.id == "project-greyhaven")
+        #expect(archiveOutcome.project.title == "Fog Over Greyhaven")
+        #expect(archiveOutcome.report == folderOutcome.report)
+        #expect(archiveOutcome.report.canCommit)
+        #expect(archiveOutcome.review == folderOutcome.review)
+        #expect(archiveOutcome.review.canCommit)
+        #expect(archiveOutcome.manifestHash == folderOutcome.manifestHash)
+        #expect(archiveOutcome.manifestHash.hasPrefix("sha256:"))
+        #expect(archiveOutcome.persistedEventCount == 1)
+        #expect(archiveOutcome.persistedEventSequence == 1)
+        #expect(archiveOutcome.importedPayload == folderOutcome.importedPayload)
+        #expect(archiveOutcome.importedPayload?.projectID == "project-greyhaven")
+        #expect(
+            archiveOutcome.importedPayload?.campaignTitle
+                == "Fog Over Greyhaven"
+        )
+        #expect(
+            archiveOutcome.normalizedProjectData
+                == folderOutcome.normalizedProjectData
+        )
+        #expect(archiveOutcome.persistedProject == archiveOutcome.project)
+        #expect(archiveOutcome.assets == folderOutcome.assets)
+        #expect(
+            archiveOutcome.assets.map(\.assetID)
+                == ["asset-guide", "asset-hero", "asset-scene"]
+        )
+        #expect(archiveOutcome.catalogCount == 1)
+        #expect(archiveOutcome.catalogTitle == "Fog Over Greyhaven")
+        #expect(archiveOutcome.catalogProjectID == "project-greyhaven")
+        #expect(archiveOutcome.campaignDirectoryExists)
+        #expect(archiveOutcome.stageExistsAfterCommit == false)
+    }
+
     @Test
     func displayedProjectPhasesOwnTheirNamedArtifacts() async throws {
         let fixture = try ImportCommitFixture()
@@ -131,6 +191,193 @@ struct ImportCommitTests {
         #expect(snapshot.events.isEmpty)
         #expect(snapshot.assets.isEmpty)
     }
+}
+
+private struct ArchiveImportAcceptanceFixture {
+    let rootURL: URL
+    let folderApplicationSupportURL: URL
+    let archiveApplicationSupportURL: URL
+
+    init() throws {
+        rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "ArchiveImportAcceptance-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        folderApplicationSupportURL = rootURL.appendingPathComponent(
+            "FolderApplicationSupport",
+            isDirectory: true
+        )
+        archiveApplicationSupportURL = rootURL.appendingPathComponent(
+            "ArchiveApplicationSupport",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: rootURL,
+            withIntermediateDirectories: true
+        )
+    }
+
+    var fullSourceURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("RPGPlayer/Fixtures/Imports/CDFv2/Sources/full")
+    }
+
+    func makeArchive() throws -> URL {
+        let archiveURL = rootURL.appendingPathComponent("full-cdf-v2.zip")
+        let archive = try Archive(
+            url: archiveURL,
+            accessMode: .create,
+            pathEncoding: nil
+        )
+        let relativePaths = [
+            "assets/greyhaven.txt",
+            "assets/guide.txt",
+            "assets/hero.txt",
+            "project.json"
+        ]
+        for relativePath in relativePaths {
+            let data = try Data(
+                contentsOf: fullSourceURL.appendingPathComponent(relativePath)
+            )
+            try archive.addEntry(
+                with: relativePath,
+                type: .file,
+                uncompressedSize: Int64(data.count),
+                modificationDate: Date(timeIntervalSince1970: 315_532_800),
+                permissions: 0o644,
+                compressionMethod: .deflate
+            ) { position, size in
+                let start = Int(position)
+                let end = min(start + size, data.count)
+                return data.subdata(in: start..<end)
+            }
+        }
+        return archiveURL
+    }
+
+    func remove() {
+        try? FileManager.default.removeItem(at: rootURL)
+    }
+}
+
+private struct ImportAcceptanceAssetOutcome: Equatable {
+    let assetID: String
+    let sha256: String
+    let relativePath: String
+    let contents: Data
+}
+
+private struct ImportAcceptanceOutcome {
+    let stagedRelativePaths: [String]
+    let project: NormalizedProject
+    let report: ImportReport
+    let review: ImportReviewSummary
+    let manifestHash: String
+    let persistedEventCount: Int
+    let persistedEventSequence: Int64?
+    let importedPayload: CampaignImportedPayload?
+    let normalizedProjectData: Data
+    let persistedProject: NormalizedProject
+    let assets: [ImportAcceptanceAssetOutcome]
+    let catalogCount: Int
+    let catalogTitle: String?
+    let catalogProjectID: String?
+    let campaignDirectoryExists: Bool
+    let stageExistsAfterCommit: Bool
+}
+
+private func importAcceptanceOutcome(
+    source: ImportSource,
+    applicationSupportURL: URL
+) async throws -> ImportAcceptanceOutcome {
+    let store = try makeImportAcceptanceStore()
+    let pipeline = ImportPipeline(
+        store: store,
+        applicationSupportDirectory: applicationSupportURL
+    )
+    let staged = try await pipeline.stage(source)
+    let stagedRelativePaths = staged.files.map(\.relativePath)
+    let inspected = try await pipeline.inspect(staged, source: source)
+    let parsed = try await pipeline.parse(inspected)
+    let validated = await pipeline.validate(parsed)
+    let prepared = try await pipeline.prepareReview(validated)
+    let campaignID = try await pipeline.commit(prepared)
+    let campaignComponent = campaignID.uuidString.lowercased()
+    let campaignURL = applicationSupportURL
+        .appendingPathComponent("Campaigns", isDirectory: true)
+        .appendingPathComponent(campaignComponent, isDirectory: true)
+    let normalizedProjectData = try Data(
+        contentsOf: campaignURL.appendingPathComponent("normalized-project.json")
+    )
+    let persistedProject = try JSONDecoder().decode(
+        NormalizedProject.self,
+        from: normalizedProjectData
+    )
+    let events = try await store.events(
+        for: campaignID,
+        after: 0,
+        limit: 10
+    )
+    let importedPayload: CampaignImportedPayload?
+    if case .campaignImported(let payload) = events.first?.payload {
+        importedPayload = payload
+    } else {
+        importedPayload = nil
+    }
+    let prefix = "Campaigns/\(campaignComponent)/"
+    let assets = try await store.importedAssets(for: campaignID).map { asset in
+        let appRelativePath = asset.appRelativeURL.relativeString
+        let relativePath = appRelativePath.hasPrefix(prefix)
+            ? String(appRelativePath.dropFirst(prefix.count))
+            : appRelativePath
+        return ImportAcceptanceAssetOutcome(
+            assetID: asset.assetID,
+            sha256: asset.sha256,
+            relativePath: relativePath,
+            contents: try Data(
+                contentsOf: applicationSupportURL.appendingPathComponent(
+                    appRelativePath
+                )
+            )
+        )
+    }.sorted { $0.assetID < $1.assetID }
+    let catalog = try await store.campaigns()
+
+    return ImportAcceptanceOutcome(
+        stagedRelativePaths: stagedRelativePaths,
+        project: parsed.project,
+        report: validated.report,
+        review: prepared.review,
+        manifestHash: prepared.manifestHash,
+        persistedEventCount: events.count,
+        persistedEventSequence: events.first?.sequence,
+        importedPayload: importedPayload,
+        normalizedProjectData: normalizedProjectData,
+        persistedProject: persistedProject,
+        assets: assets,
+        catalogCount: catalog.count,
+        catalogTitle: catalog.first?.title,
+        catalogProjectID: catalog.first?.projectID,
+        campaignDirectoryExists: FileManager.default.fileExists(
+            atPath: campaignURL.path
+        ),
+        stageExistsAfterCommit: FileManager.default.fileExists(
+            atPath: staged.directoryURL.path
+        )
+    )
+}
+
+private func makeImportAcceptanceStore() throws -> SwiftDataCampaignStore {
+    let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try ModelContainer(
+        for: CampaignEventRecord.self,
+        ImportedAssetRecord.self,
+        ProjectionCheckpointRecord.self,
+        configurations: configuration
+    )
+    return SwiftDataCampaignStore(modelContainer: container)
 }
 
 private struct ImportCommitFixture {
