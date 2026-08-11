@@ -54,6 +54,7 @@ struct RPGPlayerRootView: View {
 private struct CampaignAppRoot: View {
     private enum Route: Hashable {
         case player(UUID)
+        case providerSettings
     }
 
     @State private var path: [Route] = []
@@ -78,6 +79,7 @@ private struct CampaignAppRoot: View {
                 model: libraryModel,
                 importCoordinator: graph.importCoordinator,
                 recoveryBundleReader: graph.recoveryBundleReader,
+                openProviderSettings: openProviderSettings,
                 openCampaign: openCampaign
             )
             .navigationDestination(for: Route.self) { route in
@@ -88,6 +90,11 @@ private struct CampaignAppRoot: View {
                         campaignID: campaignID,
                         exitCampaign: { exitCampaign(campaignID) },
                         campaignDeleted: { campaignDeleted(campaignID) }
+                    )
+                case .providerSettings:
+                    ProviderSettingsView(
+                        store: graph.providerCredentialSettingsStore,
+                        validator: graph.providerCredentialValidator
                     )
                 }
             }
@@ -123,6 +130,10 @@ private struct CampaignAppRoot: View {
                 path = []
             }
         }
+    }
+
+    private func openProviderSettings() {
+        path.append(.providerSettings)
     }
 
     private func exitCampaign(_ campaignID: UUID) {

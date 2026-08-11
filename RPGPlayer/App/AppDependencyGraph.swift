@@ -13,6 +13,9 @@ final class AppDependencyGraph {
     let recoveryBundleReader: RecoveryBundleReader
     let recoveryBundleWriter: RecoveryBundleWriter
     let campaignDataManager: CampaignDataManager
+    let providerCredentialSettingsStore: any ProviderCredentialSettingsStore
+    let providerCredentialReader: any ProviderCredentialReader
+    let providerCredentialValidator: any ProviderCredentialValidator
     let startsAtLibrary: Bool
 
     init(arguments: [String]) {
@@ -20,6 +23,12 @@ final class AppDependencyGraph {
         applicationSupportDirectory = support
         startsAtLibrary = arguments.contains("-ui-testing")
             && arguments.contains("-start-at-library")
+        let credentialDependencies = Self.providerCredentialDependencies(
+            arguments: arguments
+        )
+        providerCredentialSettingsStore = credentialDependencies.settingsStore
+        providerCredentialReader = credentialDependencies.reader
+        providerCredentialValidator = credentialDependencies.validator
 
         do {
             try FileManager.default.createDirectory(
@@ -154,5 +163,77 @@ final class AppDependencyGraph {
             }
         }
         return scoped
+    }
+
+    private static func providerCredentialDependencies(
+        arguments: [String]
+    ) -> (
+        settingsStore: any ProviderCredentialSettingsStore,
+        reader: any ProviderCredentialReader,
+        validator: any ProviderCredentialValidator
+    ) {
+        guard let fixture = providerSettingsFixture(arguments: arguments)
+        else {
+            let store = KeychainCredentialStore()
+            return (
+                settingsStore: store,
+                reader: store,
+                validator: UnavailableProviderCredentialValidator()
+            )
+        }
+
+        do {
+            let store = try KeychainCredentialStore(
+                testStoreIdentifier: fixture.storeIdentifier
+            )
+            return (
+                settingsStore: store,
+                reader: store,
+                validator: ProviderSettingsUITestValidator(
+                    outcome: fixture.outcome
+                )
+            )
+        } catch {
+            preconditionFailure("Invalid provider settings fixture scope")
+        }
+    }
+
+    private static func providerSettingsFixture(
+        arguments: [String]
+    ) -> ProviderSettingsFixture? {
+        guard arguments.contains("-ui-testing"),
+              let fixtureFlag = arguments.firstIndex(
+                of: "-provider-settings-fixture"
+              )
+        else {
+            return nil
+        }
+        guard arguments.indices.contains(fixtureFlag + 1),
+              let storeFlag = arguments.firstIndex(
+                of: "-persistence-test-store"
+              ),
+              arguments.indices.contains(storeFlag + 1)
+        else {
+            preconditionFailure("Incomplete provider settings fixture")
+        }
+
+        let outcome: ProviderSettingsUITestValidationOutcome
+        switch arguments[fixtureFlag + 1] {
+        case "accepting":
+            outcome = .accepting
+        case "rejecting":
+            outcome = .rejecting
+        default:
+            preconditionFailure("Unknown provider settings fixture")
+        }
+        return ProviderSettingsFixture(
+            storeIdentifier: arguments[storeFlag + 1],
+            outcome: outcome
+        )
+    }
+
+    private struct ProviderSettingsFixture {
+        let storeIdentifier: String
+        let outcome: ProviderSettingsUITestValidationOutcome
     }
 }

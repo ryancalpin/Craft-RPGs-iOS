@@ -63,6 +63,7 @@ struct CampaignLibraryView: View {
     let model: CampaignLibraryModel
     let importCoordinator: ImportCoordinator
     let recoveryBundleReader: RecoveryBundleReader
+    let openProviderSettings: @MainActor () -> Void
     let openCampaign: @MainActor (UUID) -> Void
 
     var body: some View {
@@ -151,6 +152,14 @@ struct CampaignLibraryView: View {
         .foregroundStyle(PlayerTheme.primaryText)
         .tint(PlayerTheme.accent)
         .navigationTitle("Campaigns")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: openProviderSettings) {
+                    Label("Provider Settings", systemImage: "key")
+                }
+                .accessibilityIdentifier("providerSettingsButton")
+            }
+        }
         .accessibilityIdentifier("campaignLibraryList")
         .accessibilityElement(children: .contain)
         .overlay(alignment: .topLeading) {
