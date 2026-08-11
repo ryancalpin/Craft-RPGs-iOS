@@ -20,9 +20,17 @@ struct OverviewDrawerView: View {
             case .assistant: "assistantTab"
             }
         }
+
+        var systemImage: String {
+            switch self {
+            case .overview: "list.bullet.rectangle"
+            case .assistant: "sparkles"
+            }
+        }
     }
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.playerReduceTransparencyOverride) private var reduceTransparencyOverride
 
     @Binding var state: OverviewDrawerState
     let presentationSettled: Bool
@@ -32,7 +40,11 @@ struct OverviewDrawerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OverviewDrawerHeader(selectedSection: $state.selectedSection, close: close)
+            OverviewDrawerHeader(
+                selectedSection: $state.selectedSection,
+                presentationSettled: presentationSettled,
+                close: close
+            )
 
             Divider().overlay(PlayerTheme.panelStroke)
 
@@ -52,7 +64,12 @@ struct OverviewDrawerView: View {
         .padding(.bottom, safeAreaBottom)
         .foregroundStyle(PlayerTheme.primaryText)
         .background {
-            DrawerMaterialBackground(isOpaque: reduceTransparency)
+            DrawerMaterialBackground(
+                isOpaque: PlayerAccessibilityPolicy.reducesTransparency(
+                    systemEnabled: reduceTransparency,
+                    forcedForTesting: reduceTransparencyOverride
+                )
+            )
                 .scaleEffect(x: -1)
         }
         .accessibilityElement(children: .contain)
@@ -71,7 +88,7 @@ struct OverviewDrawerState {
     var characterExpanded = true
     var musicPlaying = false
     var assistantDraft = ""
-    var assistantActionsExpanded = false
+    var assistantActionsExpanded = true
     var assistantMessages = AssistantFixtureMessage.initialMessages
     var assistantScrollPosition: Int?
 }
@@ -80,19 +97,15 @@ private struct OverviewDrawerHeader: View {
     @State private var settingsPresented = false
 
     @Binding var selectedSection: OverviewDrawerView.Section
+    let presentationSettled: Bool
     let close: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
-            Picker("Campaign panel", selection: $selectedSection) {
-                ForEach(OverviewDrawerView.Section.allCases) { section in
-                    Text(section.title)
-                        .accessibilityIdentifier(section.accessibilityIdentifier)
-                        .tag(section)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(minHeight: 44)
+            OverviewSectionTabs(
+                selection: $selectedSection,
+                presentationSettled: presentationSettled
+            )
 
             DrawerHeaderButton(
                 systemName: "gearshape",
@@ -114,6 +127,67 @@ private struct OverviewDrawerHeader: View {
             Button("Done", role: .cancel) {}
         } message: {
             Text("Settings are unavailable in this local fixture.")
+        }
+    }
+}
+
+private struct OverviewSectionTabs: View {
+    @AccessibilityFocusState private var focusedSection: OverviewDrawerView.Section?
+
+    @Binding var selection: OverviewDrawerView.Section
+    let presentationSettled: Bool
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(OverviewDrawerView.Section.allCases) { section in
+                Button {
+                    selection = section
+                } label: {
+                    ViewThatFits(in: .horizontal) {
+                        Text(section.title)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+
+                        Image(systemName: section.systemImage)
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .foregroundStyle(
+                        selection == section
+                            ? PlayerTheme.primaryText
+                            : PlayerTheme.secondaryText
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background {
+                        if selection == section {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(Color.white.opacity(0.10))
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityLabel(section.title)
+                .accessibilityIdentifier(section.accessibilityIdentifier)
+                .accessibilityAddTraits(
+                    selection == section ? .isSelected : []
+                )
+                .accessibilityFocused($focusedSection, equals: section)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .padding(2)
+        .background(
+            Color.black.opacity(0.12),
+            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Campaign panel")
+        .onChange(of: presentationSettled, initial: true) { _, settled in
+            if settled {
+                focusedSection = selection
+            }
         }
     }
 }
@@ -362,6 +436,8 @@ private struct FixtureArtwork: View {
 }
 
 private struct PinnedFilePreview: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             FixtureArtwork(
@@ -378,7 +454,13 @@ private struct PinnedFilePreview: View {
             Text("A local campaign brief with the current objective, known risks, and the clues already discovered.")
                 .font(.subheadline)
                 .foregroundStyle(PlayerTheme.secondaryText)
-                .lineLimit(3)
+                .lineLimit(
+                    PlayerAccessibilityPolicy.lineLimit(
+                        compactLimit: 3,
+                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                    )
+                )
+                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("overviewPinnedFilePreview")
@@ -400,6 +482,7 @@ private struct CharacterStat: View {
 
 private struct CampaignAssistantContent: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playerReduceMotionOverride) private var reduceMotionOverride
 
     @Binding var message: String
     @Binding var messages: [AssistantFixtureMessage]
@@ -416,30 +499,54 @@ private struct CampaignAssistantContent: View {
                 Divider().overlay(PlayerTheme.panelStroke)
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
                         ForEach(messages) { message in
                             AssistantConversationMessage(message: message)
                                 .id(message.id)
                         }
 
-                        AssistantToolResultCard()
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button {
+                                actionsExpanded.toggle()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Text("Actions")
+                                    Spacer()
+                                    Image(systemName: "chevron.forward")
+                                        .rotationEffect(
+                                            actionsExpanded ? .degrees(90) : .zero
+                                        )
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Actions")
+                            .accessibilityValue(
+                                actionsExpanded ? "Expanded" : "Collapsed"
+                            )
+                            .accessibilityIdentifier("assistantActionsDisclosure")
 
-                        DisclosureGroup("Actions", isExpanded: $actionsExpanded) {
-                            Text("No action changes the live campaign until you explicitly confirm it.")
-                                .font(.caption)
-                                .foregroundStyle(PlayerTheme.secondaryText)
+                            if actionsExpanded {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    AssistantToolResultCard()
+                                    Text("No action changes the live campaign until you explicitly confirm it.")
+                                        .font(.caption)
+                                        .foregroundStyle(PlayerTheme.secondaryText)
+                                }
                                 .padding(.top, 8)
+                            }
                         }
                         .font(.subheadline.weight(.semibold))
                         .padding(12)
                         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
-                        .accessibilityIdentifier("assistantActionsDisclosure")
                     }
-                    .padding(16)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                 }
                 .onAppear {
                     guard let scrollPosition else { return }
-                    scrollProxy.scrollTo(scrollPosition, anchor: .center)
+                    scrollProxy.scrollTo(scrollPosition, anchor: .bottom)
                 }
                 .onChange(of: messages.count) { _, _ in
                     scrollToLatest(using: scrollProxy)
@@ -447,34 +554,11 @@ private struct CampaignAssistantContent: View {
 
                 Divider().overlay(PlayerTheme.panelStroke)
 
-                AssistantTokenBar()
-
-                Divider().overlay(PlayerTheme.panelStroke)
-
-                HStack(alignment: .bottom, spacing: 10) {
-                    TextField("Ask about the campaign", text: $message, axis: .vertical)
-                        .lineLimit(1...4)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 46)
-                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 15))
-                        .accessibilityIdentifier("assistantComposer")
-                    Button(action: sendMessage) {
-                        Image(systemName: "arrow.up")
-                            .font(.body.weight(.bold))
-                            .frame(width: 44, height: 44)
-                            .background(
-                                canSend ? PlayerTheme.accent : Color.white.opacity(0.08),
-                                in: Circle()
-                            )
-                            .foregroundStyle(
-                                canSend ? Color.black.opacity(0.76) : PlayerTheme.secondaryText
-                            )
-                    }
-                    .disabled(!canSend)
-                    .accessibilityLabel("Send to campaign assistant")
-                    .accessibilityIdentifier("sendAssistantMessage")
-                }
-                .padding(12)
+                AssistantComposerSurface(
+                    message: $message,
+                    canSend: canSend,
+                    send: sendMessage
+                )
             }
         }
     }
@@ -482,11 +566,14 @@ private struct CampaignAssistantContent: View {
     private func scrollToLatest(using proxy: ScrollViewProxy) {
         guard let newestMessage = messages.last else { return }
         scrollPosition = newestMessage.id
-        if reduceMotion {
-            proxy.scrollTo(newestMessage.id, anchor: .center)
+        if PlayerAccessibilityPolicy.reducesMotion(
+            systemEnabled: reduceMotion,
+            forcedForTesting: reduceMotionOverride
+        ) {
+            proxy.scrollTo(newestMessage.id, anchor: .bottom)
         } else {
             withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(newestMessage.id, anchor: .center)
+                proxy.scrollTo(newestMessage.id, anchor: .bottom)
             }
         }
     }
@@ -514,32 +601,61 @@ private struct CampaignAssistantContent: View {
 }
 
 private struct AssistantContextBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private enum Utility {
-        case records
+        case addContext
         case history
         case latest
     }
 
+    @State private var showsContextChip = true
     @State private var selectedUtility: Utility?
     let jumpToLatest: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(contextLabel)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10)
-                .frame(minHeight: 30)
-                .background(PlayerTheme.accent.opacity(0.18), in: Capsule())
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    if showsContextChip {
+                        AssistantContextChip {
+                            showsContextChip = false
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 0)
+                        utilityButtons
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    if showsContextChip {
+                        AssistantContextChip {
+                            showsContextChip = false
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    utilityButtons
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 52)
+        .foregroundStyle(PlayerTheme.secondaryText)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("assistantContextBar")
+    }
 
-            Spacer(minLength: 4)
-
+    @ViewBuilder
+    private var utilityButtons: some View {
             AssistantUtilityButton(
-                systemName: "rectangle.and.text.magnifyingglass",
-                label: "Campaign records",
-                identifier: "assistantRecordsUtility",
-                selected: selectedUtility == .records
+                systemName: "plus",
+                label: "Add context",
+                identifier: "assistantAddContextUtility",
+                selected: selectedUtility == .addContext
             ) {
-                selectedUtility = selectedUtility == .records ? nil : .records
+                showsContextChip = true
+                selectedUtility = selectedUtility == .addContext ? nil : .addContext
             }
             AssistantUtilityButton(
                 systemName: "clock",
@@ -558,21 +674,30 @@ private struct AssistantContextBar: View {
                 selectedUtility = selectedUtility == .latest ? nil : .latest
                 jumpToLatest()
             }
-        }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 44)
-        .foregroundStyle(PlayerTheme.secondaryText)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("assistantContextBar")
     }
+}
 
-    private var contextLabel: LocalizedStringKey {
-        switch selectedUtility {
-        case .records: "3 local records"
-        case .history: "3 assistant turns"
-        case .latest: "Latest response"
-        case nil: "Current: Ascendant Road"
+private struct AssistantContextChip: View {
+    let close: () -> Void
+
+    var body: some View {
+        Button(action: close) {
+            HStack(spacing: 6) {
+                Text("Visual Assets Needed")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.bold))
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 44)
+            .background(PlayerTheme.accent.opacity(0.18), in: Capsule())
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Visual Assets Needed")
+        .accessibilityHint("Remove from assistant context")
+        .accessibilityIdentifier("assistantContextChip")
     }
 }
 
@@ -604,11 +729,13 @@ private struct AssistantToolResultCard: View {
             Label("Local record summary", systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(PlayerTheme.primaryText)
-            Text("Prepared from three fixture records")
+            Text("Prepared from three local fixture records • Review only")
                 .font(.caption)
                 .foregroundStyle(PlayerTheme.secondaryText)
-            Label("Current objective and two open clues", systemImage: "doc.text")
-            Label("One proposed follow-up action", systemImage: "wand.and.stars")
+            Label("Current objective: reach the high pass before nightfall", systemImage: "doc.text")
+            Label("Open clues: the distant rider and broken watchtower", systemImage: "person.2")
+            Label("Visual assets: pass map, rider silhouette, and lantern study", systemImage: "photo.on.rectangle")
+            Label("Proposed follow-up: confirm a scene brief before any campaign change", systemImage: "wand.and.stars")
         }
         .font(.footnote)
         .padding(12)
@@ -623,20 +750,140 @@ private struct AssistantToolResultCard: View {
     }
 }
 
+private struct AssistantComposerSurface: View {
+    @Binding var message: String
+    let canSend: Bool
+    let send: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            AssistantTokenBar()
+
+            Divider().overlay(PlayerTheme.panelStroke)
+
+            TextField("Let’s Craft…", text: $message, axis: .vertical)
+                .lineLimit(1...3)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, minHeight: 39, alignment: .topLeading)
+                .accessibilityIdentifier("assistantComposer")
+
+            AssistantComposerFooter(canSend: canSend, send: send)
+        }
+        .frame(minHeight: 128, idealHeight: 136, maxHeight: 155)
+        .background(Color.black.opacity(0.16))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(PlayerTheme.panelStroke)
+                .frame(height: 0.5)
+        }
+        .accessibilityElement(children: .contain)
+        .background {
+            Color.clear
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Assistant composer surface")
+                .accessibilityIdentifier("assistantComposerSurface")
+                .accessibilityRespondsToUserInteraction(false)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
 private struct AssistantTokenBar: View {
     var body: some View {
-        HStack {
+        HStack(spacing: 4) {
             Label("3.8K context", systemImage: "gauge.with.dots.needle.67percent")
-            Spacer()
-            Image(systemName: "paperclip")
-            Image(systemName: "doc.text.magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(PlayerTheme.secondaryText)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            AssistantComposerControl(
+                systemName: "doc",
+                label: "Attach document",
+                identifier: "assistantDocumentControl"
+            )
+            AssistantComposerControl(
+                systemName: "text.badge.plus",
+                label: "Add context",
+                identifier: "assistantContextControl"
+            )
         }
-        .font(.caption)
-        .foregroundStyle(PlayerTheme.secondaryText)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 36)
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 8)
+        .frame(height: 44)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assistantTokenBar")
+    }
+}
+
+private struct AssistantComposerFooter: View {
+    let canSend: Bool
+    let send: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            AssistantComposerControl(
+                systemName: "plus",
+                label: "Add to prompt",
+                identifier: "assistantComposerAdd"
+            )
+
+            Button(action: {}) {
+                HStack(spacing: 5) {
+                    Text("GPT-5.6 Luna")
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                }
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                .background(Color.white.opacity(0.07), in: Capsule())
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("GPT-5.6 Luna")
+            .accessibilityIdentifier("assistantModelPicker")
+
+            Spacer(minLength: 0)
+
+            Button(action: send) {
+                Image(systemName: "arrow.up")
+                    .font(.body.weight(.bold))
+                    .frame(width: 44, height: 44)
+                    .background(
+                        canSend ? PlayerTheme.accent : Color.white.opacity(0.08),
+                        in: Circle()
+                    )
+                    .foregroundStyle(
+                        canSend ? Color.black.opacity(0.76) : PlayerTheme.secondaryText
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSend)
+            .accessibilityLabel("Send to campaign assistant")
+            .accessibilityIdentifier("sendAssistantMessage")
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 44)
+    }
+}
+
+private struct AssistantComposerControl: View {
+    let systemName: String
+    let label: LocalizedStringKey
+    let identifier: String
+
+    var body: some View {
+        Button(action: {}) {
+            Image(systemName: systemName)
+                .font(.caption.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -654,17 +901,12 @@ struct AssistantFixtureMessage: Identifiable, Equatable {
         AssistantFixtureMessage(
             id: 1,
             role: .assistant,
-            text: "I can summarize local campaign records and prepare actions for your confirmation."
+            text: "I can summarize the local campaign record, trace the open clues, and prepare a visual brief for the next scene. Every proposed action stays local until you confirm it."
         ),
         AssistantFixtureMessage(
             id: 2,
             role: .user,
-            text: "Prepare a local summary of the road ahead."
-        ),
-        AssistantFixtureMessage(
-            id: 3,
-            role: .assistant,
-            text: "I found three fixture records with a current objective, two unresolved clues, and one proposed follow-up."
+            text: "Prepare a local summary of the road ahead, including the watchtower, the rider, and the visual assets the next scene may need."
         )
     ]
 }
@@ -682,6 +924,11 @@ private struct AssistantConversationMessage: View {
                 .foregroundStyle(PlayerTheme.secondaryText)
                 .accessibilityIdentifier(
                     message.role == .user ? "assistantUserMessage" : "assistantMessage"
+                )
+                .accessibilityLabel(
+                    message.role == .user
+                        ? "You, \(message.text)"
+                        : "Campaign Assistant, \(message.text)"
                 )
         }
         .padding(12)

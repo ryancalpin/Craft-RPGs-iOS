@@ -7,6 +7,7 @@ enum GameHeaderFocus: Hashable {
 
 struct GameHeaderView: View {
     @AccessibilityFocusState private var accessibilityFocus: GameHeaderFocus?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let title: String
     @Binding var focusRequest: GameHeaderFocus?
@@ -18,8 +19,13 @@ struct GameHeaderView: View {
             Text(title)
                 .font(.headline)
                 .fontWeight(.semibold)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 56)
+                .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+                .accessibilityIdentifier("campaignTitle")
+                .accessibilitySortPriority(2)
 
             HStack {
                 HeaderIconButton(
@@ -29,6 +35,7 @@ struct GameHeaderView: View {
                     action: openProject
                 )
                 .accessibilityFocused($accessibilityFocus, equals: .project)
+                .accessibilitySortPriority(3)
 
                 Spacer()
 
@@ -39,9 +46,10 @@ struct GameHeaderView: View {
                     action: openOverview
                 )
                 .accessibilityFocused($accessibilityFocus, equals: .overview)
+                .accessibilitySortPriority(1)
             }
         }
-        .frame(minHeight: 52)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 112 : 52)
         .foregroundStyle(PlayerTheme.primaryText)
         .padding(.horizontal, 8)
         .onChange(of: focusRequest) { _, newValue in

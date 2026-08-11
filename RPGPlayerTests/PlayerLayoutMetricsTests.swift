@@ -82,6 +82,102 @@ final class PlayerLayoutMetricsTests: XCTestCase {
         XCTAssertEqual(PlayerLayoutMetrics.turnConfirmFooterPadding, 7)
     }
 
+    func testAccessibilityPolicyCombinesSystemAndDeterministicOverrides() {
+        XCTAssertFalse(
+            PlayerAccessibilityPolicy.reducesMotion(
+                systemEnabled: false,
+                forcedForTesting: false
+            )
+        )
+        XCTAssertTrue(
+            PlayerAccessibilityPolicy.reducesMotion(
+                systemEnabled: false,
+                forcedForTesting: true
+            )
+        )
+        XCTAssertTrue(
+            PlayerAccessibilityPolicy.reducesTransparency(
+                systemEnabled: true,
+                forcedForTesting: false
+            )
+        )
+    }
+
+    func testAccessibilityPolicyNeverCapsOrShrinksStoryText() {
+        XCTAssertNil(
+            PlayerAccessibilityPolicy.lineLimit(
+                compactLimit: 2,
+                isAccessibilitySize: true
+            )
+        )
+        XCTAssertEqual(
+            PlayerAccessibilityPolicy.lineLimit(
+                compactLimit: 2,
+                isAccessibilitySize: false
+            ),
+            2
+        )
+        XCTAssertEqual(
+            PlayerAccessibilityPolicy.minimumScaleFactor(
+                compactValue: 0.82,
+                isAccessibilitySize: true
+            ),
+            1
+        )
+    }
+
+    func testAccessibilityPolicyStrengthensCustomSurfaceContrast() {
+        XCTAssertEqual(
+            PlayerAccessibilityPolicy.surfaceStrokeWidth(
+                increasedContrast: false
+            ),
+            1
+        )
+        XCTAssertEqual(
+            PlayerAccessibilityPolicy.surfaceStrokeWidth(
+                increasedContrast: true
+            ),
+            2
+        )
+        XCTAssertGreaterThan(
+            PlayerAccessibilityPolicy.surfaceStrokeOpacity(
+                increasedContrast: true
+            ),
+            PlayerAccessibilityPolicy.surfaceStrokeOpacity(
+                increasedContrast: false
+            )
+        )
+    }
+
+    func testAccessibilityPolicyReservesHeaderAndRemovesSpatialMotion() {
+        XCTAssertEqual(
+            PlayerAccessibilityPolicy.presentationSafeAreaTop(
+                baseSafeAreaTop: 59,
+                measuredHeaderHeight: 112,
+                isAccessibilitySize: false
+            ),
+            59
+        )
+        XCTAssertEqual(
+            PlayerAccessibilityPolicy.presentationSafeAreaTop(
+                baseSafeAreaTop: 59,
+                measuredHeaderHeight: 112,
+                isAccessibilitySize: true
+            ),
+            119
+        )
+        XCTAssertTrue(
+            PlayerAccessibilityPolicy.animatesSpatialChanges(
+                reducesMotion: false
+            )
+        )
+        XCTAssertFalse(
+            PlayerAccessibilityPolicy.animatesSpatialChanges(
+                reducesMotion: true
+            )
+        )
+    }
+
     @MainActor
     func testSearchKeyboardAccessoryUsesOneContinuousChromeAndNativeTargets() {
         for width in [CGFloat(440), 1_032] {
@@ -127,5 +223,15 @@ final class PlayerLayoutMetricsTests: XCTestCase {
                 "dismissSearchKeyboard"
             )
         }
+
+        let opaqueAccessory = SearchKeyboardAccessoryView(
+            frame: CGRect(x: 0, y: 0, width: 440, height: 48),
+            reducesTransparency: true
+        )
+        XCTAssertNil(opaqueAccessory.chromeView.effect)
+        XCTAssertEqual(
+            opaqueAccessory.chromeView.backgroundColor?.cgColor.alpha,
+            1
+        )
     }
 }

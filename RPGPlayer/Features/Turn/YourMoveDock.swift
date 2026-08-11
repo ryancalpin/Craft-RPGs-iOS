@@ -2,8 +2,10 @@ import SwiftUI
 
 struct YourMoveDock: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AccessibilityFocusState private var accessibilityFocused: Bool
 
     let choiceCount: Int
+    @Binding var focusRequest: Bool
     let open: () -> Void
 
     var body: some View {
@@ -14,16 +16,10 @@ struct YourMoveDock: View {
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: 72)
             .background {
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Capsule()
-                            .fill(PlayerTheme.panel.opacity(0.58))
-                    }
-                    .overlay {
-                        Capsule()
-                            .stroke(PlayerTheme.panelStroke, lineWidth: 1)
-                    }
+                PlayerSemanticSurface(
+                    shape: Capsule(),
+                    style: .material(panelOverlayOpacity: 0.58)
+                )
             }
             .contentShape(Capsule())
         }
@@ -32,6 +28,13 @@ struct YourMoveDock: View {
         .accessibilityValue("The GM is waiting. \(choiceCount) choices")
         .accessibilityHint("Opens the player action sheet")
         .accessibilityIdentifier("yourMoveDock")
+        .accessibilityFocused($accessibilityFocused)
+        .onAppear(perform: applyPendingFocus)
+        .onChange(of: focusRequest) { _, requested in
+            if requested {
+                applyPendingFocus()
+            }
+        }
     }
 
     @ViewBuilder
@@ -80,12 +83,22 @@ struct YourMoveDock: View {
             }
         }
     }
+
+    private func applyPendingFocus() {
+        guard focusRequest else { return }
+        accessibilityFocused = true
+        focusRequest = false
+    }
 }
 
 #Preview {
     ZStack {
         PlayerTheme.canvas
-        YourMoveDock(choiceCount: 3, open: {})
+        YourMoveDock(
+            choiceCount: 3,
+            focusRequest: .constant(false),
+            open: {}
+        )
             .padding()
     }
     .preferredColorScheme(.dark)

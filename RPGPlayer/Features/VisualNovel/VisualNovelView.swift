@@ -28,14 +28,23 @@ struct VisualNovelView: View {
     var body: some View {
         GeometryReader { proxy in
             if let currentBeat {
+                let usesAccessibilityLayout = dynamicTypeSize.isAccessibilitySize
                 VStack(spacing: 8) {
                     Spacer(minLength: safeAreaTop + 68)
 
                     if currentBeat.kind != .title {
                         CharacterSilhouettePlaceholder()
-                            .frame(width: min(proxy.size.width * 0.50, 220))
-                            .frame(height: min(proxy.size.height * 0.24, 220))
-                            .padding(.bottom, -45)
+                            .frame(
+                                width: usesAccessibilityLayout
+                                    ? min(proxy.size.width * 0.28, 120)
+                                    : min(proxy.size.width * 0.50, 220)
+                            )
+                            .frame(
+                                height: usesAccessibilityLayout
+                                    ? min(proxy.size.height * 0.10, 90)
+                                    : min(proxy.size.height * 0.24, 220)
+                            )
+                            .padding(.bottom, usesAccessibilityLayout ? -20 : -45)
                             .accessibilityHidden(true)
                     }
 
@@ -106,38 +115,54 @@ private struct VisualNovelControlRow: View {
 }
 
 private struct VisualNovelCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let beat: VisualNovelBeat
     let isLastBeat: Bool
     let usesScrollableStory: Bool
     let continueAction: () -> Void
 
     var body: some View {
-        Group {
-            if beat.kind == .title {
-                titleContent
-            } else {
-                dialogueContent
+        VStack(spacing: 0) {
+            storyContent
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 16 : 46)
+
+            if dynamicTypeSize.isAccessibilitySize {
+                continueButton
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 46)
         .frame(maxWidth: .infinity)
         .background {
-            RoundedRectangle(cornerRadius: PlayerTheme.panelRadius, style: .continuous)
-                .fill(PlayerTheme.panel)
-                .overlay {
-                    RoundedRectangle(cornerRadius: PlayerTheme.panelRadius, style: .continuous)
-                        .stroke(PlayerTheme.panelStroke, lineWidth: 1)
-                }
+            PlayerSemanticSurface(
+                shape: RoundedRectangle(
+                    cornerRadius: PlayerTheme.panelRadius,
+                    style: .continuous
+                ),
+                style: .solid
+            )
         }
         .overlay(alignment: .bottom) {
-            continueButton
-                .offset(y: 10)
+            if !dynamicTypeSize.isAccessibilitySize {
+                continueButton
+                    .offset(y: 10)
+            }
         }
-        .padding(.bottom, 10)
+        .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 0 : 10)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("visualNovelCard")
+    }
+
+    @ViewBuilder
+    private var storyContent: some View {
+        if beat.kind == .title {
+            titleContent
+        } else {
+            dialogueContent
+        }
     }
 
     private var titleContent: some View {
@@ -145,9 +170,15 @@ private struct VisualNovelCard: View {
             Text((beat.title ?? beat.text).uppercased())
                 .font(.title2.weight(.medium))
                 .tracking(4)
-                .lineLimit(2)
+                .lineLimit(
+                    PlayerAccessibilityPolicy.lineLimit(
+                        compactLimit: 2,
+                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                    )
+                )
                 .multilineTextAlignment(.center)
                 .foregroundStyle(PlayerTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 280)
 
             if let subtitle = beat.subtitle {
@@ -195,7 +226,8 @@ private struct VisualNovelCard: View {
                     ScrollView {
                         storyText
                     }
-                    .frame(maxHeight: 230)
+                    .frame(maxHeight: dynamicTypeSize.isAccessibilitySize ? 150 : 230)
+                    .accessibilityIdentifier("visualNovelStoryViewport")
                 } else {
                     storyText
                 }
@@ -215,16 +247,40 @@ private struct VisualNovelCard: View {
 
     private var continueButton: some View {
         Button(action: continueAction) {
-            HStack(spacing: 12) {
-                Text(isLastBeat ? "End of scene — your move" : "Continue")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Image(systemName: "chevron.right")
-                    .font(.headline.weight(.semibold))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    Text(isLastBeat ? "End of scene — your move" : "Continue")
+                        .font(.headline)
+                        .lineLimit(
+                            PlayerAccessibilityPolicy.lineLimit(
+                                compactLimit: 1,
+                                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                            )
+                        )
+                        .minimumScaleFactor(
+                            PlayerAccessibilityPolicy.minimumScaleFactor(
+                                compactValue: 0.82,
+                                isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                            )
+                        )
+                        .fixedSize(horizontal: true, vertical: true)
+                    Image(systemName: "chevron.right")
+                        .font(.headline.weight(.semibold))
+                }
+
+                VStack(spacing: 4) {
+                    Text(isLastBeat ? "End of scene — your move" : "Continue")
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: "chevron.right")
+                        .font(.headline.weight(.semibold))
+                }
+                .frame(maxWidth: 280)
             }
             .foregroundStyle(PlayerTheme.primaryText)
             .padding(.horizontal, 24)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 6 : 0)
             .frame(minWidth: 160, minHeight: 46)
             .background {
                 Capsule()

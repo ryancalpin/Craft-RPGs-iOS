@@ -4,6 +4,7 @@ struct PlayerShellView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var state: PlayerSessionState
+    @State private var measuredHeaderHeight = PlayerTheme.controlHeight
     @State private var headerFocusRequest: GameHeaderFocus?
     @State private var projectSearchText = ""
     @State private var packageSheetPresented = false
@@ -15,15 +16,33 @@ struct PlayerShellView: View {
     @State private var pendingSubmission: PlayerSubmission?
     @State private var generationSteps: [String] = []
     @State private var generationTask: Task<Void, Never>?
+    @State private var yourMoveFocusRequest = false
     private let turnStreaming: any TurnStreaming
     private let exposesTurnContextForTesting: Bool
     private let forcedDynamicTypeSize: DynamicTypeSize?
+    private let forcesReduceMotionForTesting: Bool
+    private let forcesReduceTransparencyForTesting: Bool
+    private let exposesAccessibilityEnvironmentForTesting: Bool
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments) {
-        turnStreaming = SimulatedTurnStreaming(delay: .milliseconds(700))
+        turnStreaming = SimulatedTurnStreaming(delay: .milliseconds(1_000))
         var initialState = PlayerSessionState.fixture
-        if Self.fixtureName(in: arguments) == "visual-novel" {
+        var initialGenerationSteps: [String] = []
+        switch Self.fixtureName(in: arguments) {
+        case "visual-novel":
             initialState.mode = .visualNovel
+        case "generation":
+            initialState.generation = .voicing
+            initialState.activeRequestID = "visual-fixture"
+            initialGenerationSteps = [
+                "Loaded the latest campaign state.",
+                "Prepared the next scene outline.",
+                "Applied the player action to the world state.",
+                "Drafted the next story beat.",
+                "Prepared dialogue and narration."
+            ]
+        default:
+            break
         }
         exposesTurnContextForTesting = arguments.contains(
             "-turn-sheet-geometry-test"
@@ -31,19 +50,49 @@ struct PlayerShellView: View {
         forcedDynamicTypeSize = arguments.contains(
             "-dynamic-type-accessibility-test"
         ) ? .accessibility5 : nil
+        forcesReduceMotionForTesting = arguments.contains(
+            "-reduce-motion-test"
+        )
+        forcesReduceTransparencyForTesting = arguments.contains(
+            "-reduce-transparency-test"
+        )
+        exposesAccessibilityEnvironmentForTesting = arguments.contains(
+            "-accessibility-environment-test"
+        )
         _state = State(initialValue: initialState)
+        _generationSteps = State(initialValue: initialGenerationSteps)
     }
 
     var body: some View {
         GeometryReader { proxy in
             let safeAreaTop = PlayerLayoutMetrics.safeAreaInset(proxy.safeAreaInsets.top)
             let safeAreaBottom = PlayerLayoutMetrics.safeAreaInset(proxy.safeAreaInsets.bottom)
+            let effectiveTypeSize = forcedDynamicTypeSize ?? dynamicTypeSize
+            let presentationSafeAreaTop = PlayerAccessibilityPolicy.presentationSafeAreaTop(
+                baseSafeAreaTop: safeAreaTop,
+                measuredHeaderHeight: measuredHeaderHeight,
+                isAccessibilitySize: effectiveTypeSize.isAccessibilitySize
+            )
 
             ZStack {
+                if exposesAccessibilityEnvironmentForTesting {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Accessibility environment")
+                        .accessibilityValue(
+                            "Reduce Motion, Reduce Transparency"
+                        )
+                        .accessibilityIdentifier("accessibilityEnvironment")
+                        .accessibilityRespondsToUserInteraction(false)
+                        .allowsHitTesting(false)
+                }
+
                 SceneCanvasView()
                     .accessibilityHidden(
                         state.drawer != .none || state.isTurnSheetPresented
                     )
+                    .accessibilitySortPriority(1)
 
                 TopLegibilityGradient()
 
@@ -51,7 +100,7 @@ struct PlayerShellView: View {
                     availableHeight: proxy.size.height
                         + safeAreaTop
                         + safeAreaBottom,
-                    safeAreaTop: safeAreaTop,
+                    safeAreaTop: presentationSafeAreaTop,
                     safeAreaBottom: safeAreaBottom
                 )
                 .accessibilityHidden(
@@ -59,6 +108,7 @@ struct PlayerShellView: View {
                         || (state.isTurnSheetPresented
                             && !exposesTurnContextForTesting)
                 )
+                .accessibilitySortPriority(2)
 
                 VStack(spacing: 0) {
                     GameHeaderView(
@@ -67,12 +117,25 @@ struct PlayerShellView: View {
                         openProject: { send(.openDrawer(.project)) },
                         openOverview: { send(.openDrawer(.overview)) }
                     )
+                    .onGeometryChange(for: CGFloat.self) { headerProxy in
+                        headerProxy.size.height
+                    } action: { newHeight in
+                        guard newHeight.isFinite,
+                              abs(measuredHeaderHeight - newHeight) > 0.5 else {
+                            return
+                        }
+                        measuredHeaderHeight = max(
+                            PlayerTheme.controlHeight,
+                            newHeight
+                        )
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(.top, safeAreaTop)
                 .accessibilityHidden(
                     state.drawer != .none || state.isTurnSheetPresented
                 )
+                .accessibilitySortPriority(3)
 
                 if state.isTurnSheetPresented, state.mode == .transcript {
                     turnSheetOverlay(
@@ -174,6 +237,14 @@ struct PlayerShellView: View {
             \.dynamicTypeSize,
             forcedDynamicTypeSize ?? dynamicTypeSize
         )
+        .environment(
+            \.playerReduceMotionOverride,
+            forcesReduceMotionForTesting
+        )
+        .environment(
+            \.playerReduceTransparencyOverride,
+            forcesReduceTransparencyForTesting
+        )
         .sheet(isPresented: $packageSheetPresented, onDismiss: {
             headerFocusRequest = .project
         }) {
@@ -188,10 +259,17 @@ struct PlayerShellView: View {
     }
 
     private var drawerAnimation: Animation {
-        if reduceMotion {
+        if effectiveReduceMotion {
             return .easeOut(duration: 0.16)
         }
         return .spring(response: 0.30, dampingFraction: 0.85)
+    }
+
+    private var effectiveReduceMotion: Bool {
+        PlayerAccessibilityPolicy.reducesMotion(
+            systemEnabled: reduceMotion,
+            forcedForTesting: forcesReduceMotionForTesting
+        )
     }
 
     @ViewBuilder
@@ -214,13 +292,14 @@ struct PlayerShellView: View {
             case .transcript:
                 TranscriptView(
                     messages: state.messages,
-                    choiceCount: state.choices.count,
+                    choiceCount: state.choices.count + 1,
                     safeAreaTop: safeAreaTop,
                     safeAreaBottom: safeAreaBottom,
                     moveSheetReservation: moveSheetReservation(
                         availableHeight: availableHeight,
                         obscuredBottom: safeAreaBottom
                     ),
+                    dockFocusRequest: $yourMoveFocusRequest,
                     openMove: { send(.presentTurnSheet) }
                 )
             case .visualNovel:
@@ -267,7 +346,7 @@ struct PlayerShellView: View {
                         containerSafeAreaBottom: safeAreaBottom,
                         obscuredBottom: obscuredBottom
                     ),
-                    cancel: { send(.dismissTurnSheet) },
+                    cancel: dismissTurnSheet,
                     submit: submitMove
                 )
                 .frame(
@@ -377,11 +456,11 @@ struct PlayerShellView: View {
     }
 
     private func drawerTransition(edge: Edge) -> AnyTransition {
-        reduceMotion ? .opacity : .move(edge: edge)
+        effectiveReduceMotion ? .opacity : .move(edge: edge)
     }
 
     private var turnSheetTransition: AnyTransition {
-        reduceMotion ? .opacity : .move(edge: .bottom)
+        effectiveReduceMotion ? .opacity : .move(edge: .bottom)
     }
 
     private func send(_ action: PlayerAction) {
@@ -394,16 +473,45 @@ struct PlayerShellView: View {
             tracksDrawerPresentation = false
         }
 
-        withAnimation(
-            drawerAnimation,
-            completionCriteria: .logicallyComplete
-        ) {
-            state.reduce(action)
-        } completion: {
-            if tracksDrawerPresentation {
+        if tracksDrawerPresentation {
+            withAnimation(
+                drawerAnimation,
+                completionCriteria: .logicallyComplete
+            ) {
+                state.reduce(action)
+            } completion: {
                 drawerPresentationSettled = true
             }
+            return
         }
+
+        switch action {
+        case .presentTurnSheet, .dismissTurnSheet, .finishVisualNovel:
+            withAnimation(drawerAnimation) {
+                state.reduce(action)
+            }
+        case .setMode:
+            withAnimation(.easeOut(duration: effectiveReduceMotion ? 0.12 : 0.20)) {
+                state.reduce(action)
+            }
+        case .previousBeat, .nextBeat:
+            if PlayerAccessibilityPolicy.animatesSpatialChanges(
+                reducesMotion: effectiveReduceMotion
+            ) {
+                withAnimation(.easeOut(duration: 0.20)) {
+                    state.reduce(action)
+                }
+            } else {
+                state.reduce(action)
+            }
+        default:
+            state.reduce(action)
+        }
+    }
+
+    private func dismissTurnSheet() {
+        send(.dismissTurnSheet)
+        yourMoveFocusRequest = true
     }
 
     private func closeDrawer() {

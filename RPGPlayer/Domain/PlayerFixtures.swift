@@ -41,7 +41,7 @@ extension GMMessage {
             id: id,
             prose: [
                 openingNarration,
-                "Mara studies the light, one hand resting on the weathered map tucked beneath her cloak."
+                "Mara studies the light, one hand resting on the weathered map tucked beneath her cloak. The inked ridgelines are slick beneath her thumb, but every narrow crossing ahead offers the rider another place to vanish. She marks the river ford, the broken watchtower, and the steep path east, weighing which route might reveal who is following without leading them closer."
             ],
             dialogue: [
                 DialogueBlock(

@@ -9,16 +9,25 @@ struct GenerationView: View {
     let stop: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playerReduceMotionOverride) private var reduceMotionOverride
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsSteps = false
 
     var body: some View {
         GeometryReader { proxy in
+            let silhouetteWidth = dynamicTypeSize.isAccessibilitySize
+                ? min(proxy.size.width * 0.38, 152)
+                : min(proxy.size.width * 0.50, 220)
+            let silhouetteHeight = dynamicTypeSize.isAccessibilitySize
+                ? min(proxy.size.height * 0.15, 144)
+                : min(proxy.size.height * 0.24, 220)
+
             VStack(spacing: 5) {
                 Spacer(minLength: safeAreaTop + 68)
 
                 CharacterSilhouettePlaceholder()
-                    .frame(width: min(proxy.size.width * 0.50, 220))
-                    .frame(height: min(proxy.size.height * 0.24, 220))
+                    .frame(width: silhouetteWidth)
+                    .frame(height: silhouetteHeight)
                     .padding(.bottom, -45)
                     .accessibilityHidden(true)
 
@@ -28,7 +37,13 @@ struct GenerationView: View {
                     phase: phase,
                     steps: steps,
                     showsSteps: $showsSteps,
-                    reduceMotion: reduceMotion
+                    reduceMotion: PlayerAccessibilityPolicy.reducesMotion(
+                        systemEnabled: reduceMotion,
+                        forcedForTesting: reduceMotionOverride
+                    ),
+                    maximumStepListHeight: dynamicTypeSize.isAccessibilitySize
+                        ? min(260, max(140, proxy.size.height * 0.28))
+                        : nil
                 )
                 .padding(.horizontal, PlayerTheme.pageInset)
             }
@@ -71,16 +86,29 @@ struct GenerationView: View {
 }
 
 private struct GenerationCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let phase: GenerationPhase
     let steps: [String]
     @Binding var showsSteps: Bool
     let reduceMotion: Bool
+    let maximumStepListHeight: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
             if showsSteps {
-                stepList
+                if let maximumStepListHeight {
+                    ScrollView {
+                        stepList
+                    }
+                    .frame(maxHeight: maximumStepListHeight)
+                    .scrollIndicators(.visible)
+                    .accessibilityIdentifier("generationStepsViewport")
                     .transition(.opacity)
+                } else {
+                    stepList
+                        .transition(.opacity)
+                }
             }
 
             statusRow
@@ -88,18 +116,13 @@ private struct GenerationCard: View {
         }
         .frame(maxWidth: .infinity)
         .background {
-            RoundedRectangle(
-                cornerRadius: PlayerTheme.panelRadius,
-                style: .continuous
-            )
-            .fill(PlayerTheme.panel)
-            .overlay {
-                RoundedRectangle(
+            PlayerSemanticSurface(
+                shape: RoundedRectangle(
                     cornerRadius: PlayerTheme.panelRadius,
                     style: .continuous
-                )
-                .stroke(PlayerTheme.panelStroke, lineWidth: 1)
-            }
+                ),
+                style: .solid
+            )
         }
         .clipShape(
             RoundedRectangle(
@@ -118,20 +141,32 @@ private struct GenerationCard: View {
             Text(phase.displayText)
                 .font(.headline)
                 .foregroundStyle(PlayerTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+                .lineLimit(
+                    PlayerAccessibilityPolicy.lineLimit(
+                        compactLimit: 1,
+                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                    )
+                )
+                .minimumScaleFactor(
+                    PlayerAccessibilityPolicy.minimumScaleFactor(
+                        compactValue: 0.82,
+                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                    )
+                )
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentTransition(.opacity)
                 .animation(
-                    .easeOut(duration: reduceMotion ? 0.12 : 0.20),
+                    reduceMotion ? nil : .easeOut(duration: 0.20),
                     value: phase
                 )
                 .accessibilityIdentifier("generationStatus")
+                .accessibilityAddTraits(.updatesFrequently)
 
             Button {
                 withAnimation(
                     reduceMotion
-                        ? .easeOut(duration: 0.12)
+                        ? nil
                         : .spring(response: 0.26, dampingFraction: 0.88)
                 ) {
                     showsSteps.toggle()

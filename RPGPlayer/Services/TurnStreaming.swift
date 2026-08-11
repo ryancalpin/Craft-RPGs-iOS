@@ -34,6 +34,9 @@ struct SimulatedTurnStreaming: TurnStreaming {
                 }
 
                 try Task.checkCancellation()
+                if delay != .zero {
+                    try await Task<Never, Never>.sleep(for: delay)
+                }
                 continuation.yield(
                     .completed(GMMessage.fixture(id: UUID()))
                 )

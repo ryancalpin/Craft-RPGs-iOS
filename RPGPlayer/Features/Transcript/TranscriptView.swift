@@ -6,6 +6,7 @@ struct TranscriptView: View {
     let safeAreaTop: CGFloat
     let safeAreaBottom: CGFloat
     let moveSheetReservation: CGFloat?
+    @Binding var dockFocusRequest: Bool
     let openMove: () -> Void
 
     var body: some View {
@@ -33,19 +34,15 @@ struct TranscriptView: View {
                     .frame(maxWidth: 700, alignment: .leading)
                     .frame(minHeight: minimumSurfaceHeight, alignment: .bottom)
                     .background {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .fill(PlayerTheme.panel.opacity(0.50))
-                            }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .stroke(PlayerTheme.panelStroke, lineWidth: 1)
-                            }
+                        transcriptBackground
                     }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("transcriptSurface")
+                    .accessibilityValue(
+                        messages.count == 1
+                            ? "1 GM message"
+                            : "\(messages.count) GM messages"
+                    )
                     .padding(.leading, leadingInset)
                     .padding(.trailing, trailingInset)
                     .padding(.bottom, 14)
@@ -61,6 +58,7 @@ struct TranscriptView: View {
                     }
                 }
             }
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollIndicators(.hidden)
             .accessibilityIdentifier("transcriptScrollViewport")
@@ -69,7 +67,11 @@ struct TranscriptView: View {
                 spacing: moveSheetReservation == nil ? 14 : 0
             ) {
                 if moveSheetReservation == nil {
-                    YourMoveDock(choiceCount: choiceCount, open: openMove)
+                    YourMoveDock(
+                        choiceCount: choiceCount,
+                        focusRequest: $dockFocusRequest,
+                        open: openMove
+                    )
                         .padding(.horizontal, 12)
                         .padding(.bottom, bottomInset)
                 }
@@ -77,14 +79,24 @@ struct TranscriptView: View {
             .padding(.top, safeAreaTop + 68)
         }
     }
+
+    @ViewBuilder
+    private var transcriptBackground: some View {
+        PlayerSemanticSurface(
+            shape: RoundedRectangle(cornerRadius: 24, style: .continuous),
+            style: .material(panelOverlayOpacity: 0.50)
+        )
+    }
 }
 
 private struct TranscriptMessageView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playerReduceMotionOverride) private var reduceMotionOverride
     let message: GMMessage
     @State private var actionsExpanded = false
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             ForEach(message.prose.indices, id: \.self) { index in
                 Text(message.prose[index])
                     .font(.body)
@@ -100,7 +112,11 @@ private struct TranscriptMessageView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 Button {
-                    withAnimation(.easeOut(duration: 0.18)) {
+                    withAnimation(
+                        reduceMotion || reduceMotionOverride
+                            ? nil
+                            : .easeOut(duration: 0.18)
+                    ) {
                         actionsExpanded.toggle()
                     }
                 } label: {
@@ -196,6 +212,7 @@ private struct TranscriptDialogueBlock: View {
             safeAreaTop: 59,
             safeAreaBottom: 34,
             moveSheetReservation: nil,
+            dockFocusRequest: .constant(false),
             openMove: {}
         )
     }

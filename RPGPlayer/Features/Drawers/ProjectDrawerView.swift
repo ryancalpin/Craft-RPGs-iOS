@@ -35,8 +35,8 @@ struct ProjectDrawerView: View {
     }
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.playerReduceTransparencyOverride) private var reduceTransparencyOverride
     @State private var selectedSection: Section = .files
-    @State private var campaignExpanded = true
     @State private var charactersExpanded = true
 
     @Binding var searchText: String
@@ -49,24 +49,16 @@ struct ProjectDrawerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ProjectDrawerHeader(close: close)
+            ProjectDrawerHeader(
+                presentationSettled: presentationSettled,
+                close: close
+            )
 
-            Picker("Project section", selection: $selectedSection) {
-                ForEach(Section.allCases) { section in
-                    Label(section.title, systemImage: section.systemImage)
-                        .labelStyle(.iconOnly)
-                        .font(.subheadline)
-                        .accessibilityLabel(section.title)
-                        .accessibilityIdentifier(section.accessibilityIdentifier)
-                        .tag(section)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(minHeight: 44)
-            .padding(.horizontal, 4)
-            .onChange(of: selectedSection) { _, section in
+            ProjectSectionTabs(selection: $selectedSection) { section in
                 if section == .packages {
                     openPackages()
+                } else {
+                    selectedSection = section
                 }
             }
 
@@ -81,8 +73,8 @@ struct ProjectDrawerView: View {
             switch selectedSection {
             case .files:
                 ProjectFileTree(
-                    campaignExpanded: $campaignExpanded,
-                    charactersExpanded: $charactersExpanded
+                    charactersExpanded: $charactersExpanded,
+                    presentationSettled: presentationSettled
                 )
             case .search:
                 ProjectSearch(
@@ -101,7 +93,12 @@ struct ProjectDrawerView: View {
         .padding(.bottom, safeAreaBottom)
         .foregroundStyle(PlayerTheme.primaryText)
         .background {
-            DrawerMaterialBackground(isOpaque: reduceTransparency)
+            DrawerMaterialBackground(
+                isOpaque: PlayerAccessibilityPolicy.reducesTransparency(
+                    systemEnabled: reduceTransparency,
+                    forcedForTesting: reduceTransparencyOverride
+                )
+            )
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
@@ -109,6 +106,47 @@ struct ProjectDrawerView: View {
         .accessibilityIdentifier("projectDrawer")
         .accessibilityValue(presentationSettled ? "Settled" : "Transitioning")
         .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+}
+
+private struct ProjectSectionTabs: View {
+    @Binding var selection: ProjectDrawerView.Section
+    let select: (ProjectDrawerView.Section) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(ProjectDrawerView.Section.allCases) { section in
+                Button {
+                    select(section)
+                } label: {
+                    Image(systemName: section.systemImage)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(
+                            selection == section
+                                ? PlayerTheme.primaryText
+                                : PlayerTheme.secondaryText
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background {
+                            if selection == section {
+                                Rectangle().fill(Color.white.opacity(0.08))
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityLabel(section.title)
+                .accessibilityIdentifier(section.accessibilityIdentifier)
+                .accessibilityAddTraits(
+                    selection == section ? .isSelected : []
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(Color.black.opacity(0.12))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Project section")
     }
 }
 
@@ -122,61 +160,92 @@ private struct ProjectActionRow: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 4) {
-                ProjectActionButton(
-                    systemName: "doc.badge.plus",
-                    label: "New file",
-                    identifier: "projectNewFile"
-                )
-                ProjectActionButton(
-                    systemName: "folder.badge.plus",
-                    label: "New folder",
-                    identifier: "projectNewFolder"
-                )
-                ProjectActionButton(
-                    systemName: "square.and.arrow.down",
-                    label: "Import files",
-                    identifier: "projectImportFiles"
-                )
-                ProjectActionButton(
-                    systemName: "arrow.clockwise",
-                    label: "Refresh files",
-                    identifier: "projectRefreshFiles"
-                )
-                ProjectLayoutSelector(selectedLayout: $selectedLayout)
-            }
-
-            HStack(spacing: 4) {
-                ProjectActionButton(
-                    systemName: "doc.badge.plus",
-                    label: "New file",
-                    identifier: "projectNewFile"
-                )
-                ProjectActionButton(
-                    systemName: "folder.badge.plus",
-                    label: "New folder",
-                    identifier: "projectNewFolder"
-                )
-                Menu {
-                    Button("Import files", systemImage: "square.and.arrow.down") {}
-                        .disabled(true)
-                    Button("Refresh files", systemImage: "arrow.clockwise") {}
-                        .disabled(true)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.caption.weight(.semibold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("More project actions")
-                .accessibilityIdentifier("projectActionOverflow")
-
-                ProjectLayoutSelector(selectedLayout: $selectedLayout)
-            }
+            ProjectFullActionRow(selectedLayout: $selectedLayout)
+            ProjectCompactActionRow(selectedLayout: $selectedLayout)
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("projectActionRow")
+    }
+}
+
+private struct ProjectFullActionRow: View {
+    @Binding var selectedLayout: ProjectLayout
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ProjectActionButton(
+                systemName: "doc.badge.plus",
+                label: "New file",
+                identifier: "projectNewFile"
+            )
+            ProjectActionButton(
+                systemName: "folder.badge.plus",
+                label: "New folder",
+                identifier: "projectNewFolder"
+            )
+            ProjectActionButton(
+                systemName: "square.and.arrow.down",
+                label: "Import files",
+                identifier: "projectImportFiles"
+            )
+            ProjectActionButton(
+                systemName: "arrow.clockwise",
+                label: "Refresh files",
+                identifier: "projectRefreshFiles"
+            )
+            ProjectActionButton(
+                systemName: "gearshape",
+                label: "Project settings",
+                identifier: "projectSettings"
+            )
+            Spacer(minLength: 0)
+            ProjectLayoutSelector(selectedLayout: $selectedLayout)
+        }
+        .frame(minWidth: 328, maxWidth: .infinity, minHeight: 44)
+    }
+}
+
+private struct ProjectCompactActionRow: View {
+    @Binding var selectedLayout: ProjectLayout
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ProjectActionButton(
+                systemName: "doc.badge.plus",
+                label: "New file",
+                identifier: "projectNewFile"
+            )
+            ProjectActionButton(
+                systemName: "folder.badge.plus",
+                label: "New folder",
+                identifier: "projectNewFolder"
+            )
+            Menu {
+                Button("Import files", systemImage: "square.and.arrow.down") {}
+                Button("Refresh files", systemImage: "arrow.clockwise") {}
+                Button("Project settings", systemImage: "gearshape") {}
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .frame(width: 44, height: 44)
+            .accessibilityLabel("More project actions")
+            .accessibilityIdentifier("projectActionMenu")
+
+            Spacer(minLength: 8)
+
+            Rectangle()
+                .fill(PlayerTheme.panelStroke)
+                .frame(width: 1, height: 24)
+                .frame(width: 24, height: 44)
+                .accessibilityHidden(true)
+
+            ProjectLayoutSelector(selectedLayout: $selectedLayout)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44)
     }
 }
 
@@ -202,7 +271,7 @@ private struct ProjectLayoutSelector: View {
                 selectedLayout = .files
             }
         }
-        .frame(height: 44)
+        .frame(width: 88, height: 44)
         .background(Color.white.opacity(0.06), in: Capsule())
     }
 }
@@ -243,14 +312,15 @@ private struct ProjectActionButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(true)
-        .opacity(0.68)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
     }
 }
 
 private struct ProjectDrawerHeader: View {
+    @AccessibilityFocusState private var closeFocused: Bool
+
+    let presentationSettled: Bool
     let close: () -> Void
 
     var body: some View {
@@ -264,58 +334,101 @@ private struct ProjectDrawerHeader: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Exit Game")
             .accessibilityIdentifier("closeProjectDrawer")
+            .accessibilityFocused($closeFocused)
             Spacer(minLength: 8)
         }
         .padding(.top, 0)
         .padding(.horizontal, 12)
+        .onChange(of: presentationSettled, initial: true) { _, settled in
+            if settled {
+                closeFocused = true
+            }
+        }
     }
 }
 
 private struct ProjectFileTree: View {
-    @Binding var campaignExpanded: Bool
     @Binding var charactersExpanded: Bool
+    let presentationSettled: Bool
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                DisclosureGroup(isExpanded: $campaignExpanded) {
-                    VStack(spacing: 4) {
-                        FileTreeRow(icon: "map", color: .cyan, title: "World Map", count: nil)
-                        FileTreeRow(icon: "book.closed", color: .orange, title: "Lore", count: 12)
-                        FileTreeRow(icon: "signpost.right", color: .green, title: "Current Scene", count: 4)
-                    }
-                    .padding(.leading, 12)
+            LazyVStack(alignment: .leading, spacing: 0) {
+                Button {
+                    charactersExpanded.toggle()
                 } label: {
-                    FileTreeRow(icon: "folder.fill", color: PlayerTheme.accent, title: "Campaign", count: 18)
-                }
-
-                DisclosureGroup(isExpanded: $charactersExpanded) {
-                    VStack(spacing: 4) {
-                        FileTreeRow(icon: "person.crop.square", color: .purple, title: "Mara Vey", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .indigo, title: "The Lantern Rider", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .orange, title: "Archivist Ren", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .mint, title: "Glass Warden", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .green, title: "Mossbound Scout", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .cyan, title: "River Oracle", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .red, title: "Ash Cartographer", count: nil)
-                        FileTreeRow(icon: "person.crop.square", color: .blue, title: "Night Courier", count: nil)
+                    HStack(spacing: 10) {
+                        Image(systemName: charactersExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .frame(width: 16)
+                        Image(systemName: "person.2.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.purple)
+                            .frame(width: 24, height: 24)
+                        Text("Characters")
+                            .font(.footnote.weight(.semibold))
+                        Spacer(minLength: 8)
+                        Text("49")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(PlayerTheme.secondaryText)
                     }
-                    .padding(.leading, 12)
-                } label: {
-                    FileTreeRow(icon: "person.2.fill", color: .purple, title: "Characters", count: 8)
+                    .frame(height: 44)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Characters, 49 items")
+                .accessibilityValue(charactersExpanded ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("projectCharactersGroup")
 
-                FileTreeRow(icon: "sparkles", color: .pink, title: "Unresolved Threads", count: 3)
-                FileTreeRow(icon: "dice.fill", color: .red, title: "Rules", count: 5)
+                if charactersExpanded {
+                    ForEach(0..<49, id: \.self) { index in
+                        ProjectCharacterRow(index: index)
+                    }
+                }
             }
             .padding(16)
         }
         .scrollIndicators(.visible)
+        .scrollIndicatorsFlash(trigger: presentationSettled)
         .accessibilityIdentifier("projectFileTree")
     }
 }
 
+private struct ProjectCharacterRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    let index: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "person.crop.square")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.purple)
+                .frame(width: 24, height: 24)
+            Text("Character \(index + 1)")
+                .font(.footnote)
+                .lineLimit(
+                    PlayerAccessibilityPolicy.lineLimit(
+                        compactLimit: 1,
+                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                    )
+                )
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+        }
+        .padding(.leading, 26)
+        .frame(height: dynamicTypeSize.isAccessibilitySize ? nil : 40)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 44 : 40)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Character \(index + 1)")
+        .accessibilityIdentifier("projectCharacterRow-\(index)")
+    }
+}
+
 private struct FileTreeRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let icon: String
     let color: Color
     let title: String
@@ -329,7 +442,13 @@ private struct FileTreeRow: View {
                 .frame(width: 24, height: 24)
             Text(title)
                 .font(.footnote)
-                .lineLimit(1)
+                .lineLimit(
+                    PlayerAccessibilityPolicy.lineLimit(
+                        compactLimit: 1,
+                        isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                    )
+                )
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             if let count {
                 Text(count, format: .number)
@@ -345,6 +464,9 @@ private struct FileTreeRow: View {
 }
 
 private struct ProjectSearch: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.playerReduceTransparencyOverride) private var reduceTransparencyOverride
+
     @Binding var searchText: String
     @Binding var searchFocused: Bool
 
@@ -355,7 +477,12 @@ private struct ProjectSearch: View {
                     .foregroundStyle(PlayerTheme.secondaryText)
                 ProjectSearchTextField(
                     text: $searchText,
-                    isFocused: $searchFocused
+                    isFocused: $searchFocused,
+                    reducesTransparency: PlayerAccessibilityPolicy
+                        .reducesTransparency(
+                            systemEnabled: reduceTransparency,
+                            forcedForTesting: reduceTransparencyOverride
+                        )
                 )
                 .frame(minHeight: 44)
                 if !searchText.isEmpty {
@@ -389,6 +516,7 @@ private struct ProjectSearch: View {
 private struct ProjectSearchTextField: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    let reducesTransparency: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -426,6 +554,9 @@ private struct ProjectSearchTextField: UIViewRepresentable {
         if textField.text != text {
             textField.text = text
         }
+        context.coordinator.updateInputAccessoryTransparency(
+            reducesTransparency
+        )
         if !isFocused, textField.isFirstResponder {
             textField.resignFirstResponder()
         }
@@ -452,13 +583,19 @@ private struct ProjectSearchTextField: UIViewRepresentable {
 
         func makeInputAccessory() -> UIView {
             let accessory = SearchKeyboardAccessoryView(
-                frame: CGRect(x: 0, y: 0, width: 0, height: 48)
+                frame: CGRect(x: 0, y: 0, width: 0, height: 48),
+                reducesTransparency: parent.reducesTransparency
             )
             accessory.autoresizingMask = [.flexibleWidth]
             accessory.onDismiss = { [weak self] in
                 self?.dismissKeyboard()
             }
             return accessory
+        }
+
+        func updateInputAccessoryTransparency(_ reducesTransparency: Bool) {
+            (textField?.inputAccessoryView as? SearchKeyboardAccessoryView)?
+                .setReducesTransparency(reducesTransparency)
         }
 
         @objc func textDidChange(_ textField: UITextField) {
@@ -521,12 +658,16 @@ final class SearchKeyboardAccessoryView: UIView {
     let dismissButton = UIButton(type: .custom)
     var onDismiss: (() -> Void)?
 
-    override init(frame: CGRect) {
+    init(
+        frame: CGRect,
+        reducesTransparency: Bool = false
+    ) {
         super.init(frame: frame)
         isOpaque = false
         backgroundColor = .clear
         configureButtons()
         configureChrome()
+        setReducesTransparency(reducesTransparency)
     }
 
     required init?(coder: NSCoder) {
@@ -535,6 +676,26 @@ final class SearchKeyboardAccessoryView: UIView {
 
     override var intrinsicContentSize: CGSize {
         CGSize(width: UIView.noIntrinsicMetric, height: 48)
+    }
+
+    func setReducesTransparency(_ reducesTransparency: Bool) {
+        if reducesTransparency {
+            chromeView.effect = nil
+            chromeView.backgroundColor = UIColor(
+                red: 0.041,
+                green: 0.067,
+                blue: 0.105,
+                alpha: 1
+            )
+            chromeView.contentView.backgroundColor = .clear
+        } else {
+            chromeView.effect = UIBlurEffect(
+                style: .systemUltraThinMaterialDark
+            )
+            chromeView.backgroundColor = .clear
+            chromeView.contentView.backgroundColor = UIColor.white
+                .withAlphaComponent(0.035)
+        }
     }
 
     private func configureButtons() {
@@ -654,9 +815,17 @@ struct PackageSheetView: View {
             case .community: "packageCommunityTab"
             }
         }
+
+        var compactTitle: LocalizedStringKey {
+            switch self {
+            case .project: "Project"
+            case .community: "Community"
+            }
+        }
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedSection: Section = .community
     @State private var searchText = ""
     @State private var newestFirst = true
@@ -672,10 +841,11 @@ struct PackageSheetView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .frame(width: 48, height: 48)
                 .accessibilityLabel("Close packages")
                 .accessibilityIdentifier("closePackageSheet")
             }
@@ -689,12 +859,16 @@ struct PackageSheetView: View {
                     Button {
                         selectedSection = section
                     } label: {
-                        Text(section.rawValue.uppercased())
-                            .font(.subheadline.weight(.heavy))
-                            .tracking(0.9)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                            .frame(maxWidth: .infinity, minHeight: 48)
+                        ViewThatFits(in: .horizontal) {
+                            Text(section.rawValue.uppercased())
+                                .fixedSize(horizontal: true, vertical: false)
+                            Text(section.compactTitle)
+                                .fixedSize(horizontal: true, vertical: false)
+                            Image(systemName: "shippingbox")
+                        }
+                        .font(.subheadline.weight(.heavy))
+                        .tracking(0.9)
+                        .frame(maxWidth: .infinity, minHeight: 48)
                             .overlay(alignment: .bottom) {
                                 Rectangle()
                                     .fill(
@@ -707,6 +881,7 @@ struct PackageSheetView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(section.rawValue)
                     .accessibilityIdentifier(section.accessibilityIdentifier)
                     .accessibilityAddTraits(section == selectedSection ? .isSelected : [])
                 }
@@ -715,32 +890,19 @@ struct PackageSheetView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(PlayerTheme.secondaryText)
-                            TextField("Search packages", text: $searchText)
-                                .textInputAutocapitalization(.never)
-                                .submitLabel(.search)
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 8) {
+                                packageSearchField
+                                packageSortButton
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                        } else {
+                            HStack(spacing: 8) {
+                                packageSearchField
+                                packageSortButton
+                            }
                         }
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 46)
-                        .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 15))
-
-                        Button {
-                            newestFirst.toggle()
-                        } label: {
-                            Label(
-                                newestFirst ? "Updated" : "Popular",
-                                systemImage: "arrow.up.arrow.down"
-                            )
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("packageSort")
                     }
 
                     PackageFixtureCard(
@@ -782,6 +944,40 @@ struct PackageSheetView: View {
         .accessibilityIdentifier("packageSheet")
     }
 
+    private var packageSearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(PlayerTheme.secondaryText)
+            TextField("Search packages", text: $searchText)
+                .textInputAutocapitalization(.never)
+                .submitLabel(.search)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 46)
+        .background(
+            Color.white.opacity(0.055),
+            in: RoundedRectangle(cornerRadius: 15)
+        )
+    }
+
+    private var packageSortButton: some View {
+        Button {
+            newestFirst.toggle()
+        } label: {
+            Label(
+                newestFirst ? "Updated" : "Popular",
+                systemImage: "arrow.up.arrow.down"
+            )
+            .font(.caption.weight(.semibold))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(minWidth: 48, minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(minWidth: 48, minHeight: 48)
+        .accessibilityIdentifier("packageSort")
+    }
+
     private var featuredPackageID: String {
         selectedSection == .community
             ? "community-lantern-road"
@@ -798,6 +994,8 @@ struct PackageSheetView: View {
 }
 
 private struct PackageFixtureCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let packageID: String
     let title: String
     let detail: String
@@ -830,32 +1028,42 @@ private struct PackageFixtureCard: View {
                 Text(detail)
                     .font(.footnote)
                     .foregroundStyle(PlayerTheme.secondaryText)
-                    .lineLimit(3)
+                    .lineLimit(
+                        PlayerAccessibilityPolicy.lineLimit(
+                            compactLimit: 3,
+                            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+                        )
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 12) {
-                    Label("12 files", systemImage: "doc")
-                    Label("3 types", systemImage: "square.stack.3d.up")
-                    Label("8m", systemImage: "clock")
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 6) {
+                            packageMetadata
+                        }
+                    } else {
+                        HStack(spacing: 12) {
+                            packageMetadata
+                        }
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(PlayerTheme.secondaryText)
 
-                HStack {
-                    Label(installed ? "Installed locally" : "0 installs", systemImage: "arrow.down.to.line")
-                        .font(.caption)
-                        .foregroundStyle(PlayerTheme.secondaryText)
-                    Spacer()
-                    Button(action: toggleInstallation) {
-                        Label(installed ? "Installed" : "Install", systemImage: installed ? "checkmark" : "arrow.down.to.line")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(PlayerTheme.primaryText, in: RoundedRectangle(cornerRadius: 13))
-                            .foregroundStyle(Color.black.opacity(0.78))
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 8) {
+                            installSummary
+                            installButton
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    } else {
+                        HStack {
+                            installSummary
+                            Spacer()
+                            installButton
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(installed ? "Installed" : "Install")
-                    .accessibilityIdentifier(installIdentifier)
                 }
             }
             .padding(14)
@@ -869,6 +1077,44 @@ private struct PackageFixtureCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
         .id(packageID)
+    }
+
+    @ViewBuilder
+    private var packageMetadata: some View {
+        Label("12 files", systemImage: "doc")
+        Label("3 types", systemImage: "square.stack.3d.up")
+        Label("8m", systemImage: "clock")
+    }
+
+    private var installSummary: some View {
+        Label(
+            installed ? "Installed locally" : "0 installs",
+            systemImage: "arrow.down.to.line"
+        )
+        .font(.caption)
+        .foregroundStyle(PlayerTheme.secondaryText)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var installButton: some View {
+        Button(action: toggleInstallation) {
+            Label(
+                installed ? "Installed" : "Install",
+                systemImage: installed ? "checkmark" : "arrow.down.to.line"
+            )
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
+            .background(
+                PlayerTheme.primaryText,
+                in: RoundedRectangle(cornerRadius: 13)
+            )
+            .foregroundStyle(Color.black.opacity(0.78))
+        }
+        .buttonStyle(.plain)
+        .frame(minHeight: 48)
+        .accessibilityLabel(installed ? "Installed" : "Install")
+        .accessibilityIdentifier(installIdentifier)
     }
 }
 

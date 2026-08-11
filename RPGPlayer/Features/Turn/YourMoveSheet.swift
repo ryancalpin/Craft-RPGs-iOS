@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct YourMoveSheet: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playerReduceMotionOverride) private var reduceMotionOverride
+
     let choices: [PlayerChoice]
     let prompt: String
     let safeAreaBottom: CGFloat
@@ -12,6 +15,7 @@ struct YourMoveSheet: View {
     @State private var customAction = ""
     @State private var additionalContext = ""
     @FocusState private var focusedField: MoveField?
+    @AccessibilityFocusState private var closeControlFocused: Bool
 
     private enum MoveField: Hashable {
         case customAction
@@ -66,7 +70,14 @@ struct YourMoveSheet: View {
                 .scrollDismissesKeyboard(.interactively)
                 .onChange(of: focusedField) { _, newValue in
                     guard let newValue else { return }
-                    withAnimation(.easeOut(duration: 0.18)) {
+                    withAnimation(
+                        PlayerAccessibilityPolicy.reducesMotion(
+                            systemEnabled: reduceMotion,
+                            forcedForTesting: reduceMotionOverride
+                        )
+                            ? nil
+                            : .easeOut(duration: 0.18)
+                    ) {
                         scrollProxy.scrollTo(newValue, anchor: .center)
                     }
                 }
@@ -112,13 +123,19 @@ struct YourMoveSheet: View {
             .background(PlayerTheme.canvas.opacity(0.90))
         }
         .background {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(PlayerTheme.panel.opacity(0.62))
+            PlayerSemanticSurface(
+                shape: Rectangle(),
+                style: .material(panelOverlayOpacity: 0.62),
+                drawsStroke: false
+            )
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, cancel)
         .accessibilityIdentifier("yourMoveSheet")
+        .onAppear {
+            closeControlFocused = true
+        }
     }
 
     private var sheetHeader: some View {
@@ -126,6 +143,7 @@ struct YourMoveSheet: View {
             Text("YOUR MOVE")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(PlayerTheme.primaryText)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Button(action: cancel) {
                 Image(systemName: "chevron.down")
@@ -137,6 +155,7 @@ struct YourMoveSheet: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Close Your Move")
             .accessibilityIdentifier("closeYourMoveSheet")
+            .accessibilityFocused($closeControlFocused)
         }
     }
 
@@ -166,6 +185,7 @@ struct YourMoveSheet: View {
             .accessibilityLabel("Type something…")
             .accessibilityValue(customSelected ? "Selected" : "Not selected")
             .accessibilityIdentifier("customMoveChoice")
+            .accessibilityAddTraits(customSelected ? .isSelected : [])
 
             if customSelected {
                 VStack(alignment: .leading, spacing: 6) {
@@ -300,6 +320,7 @@ private struct MoveChoiceRow: View {
         )
         .accessibilityHint("Selects this action")
         .accessibilityIdentifier(choice.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
