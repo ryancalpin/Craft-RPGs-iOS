@@ -95,6 +95,8 @@ private struct VisualNovelControlRow: View {
             Text("\(currentBeat + 1) / \(beatCount)")
                 .font(.body.monospacedDigit())
                 .foregroundStyle(PlayerTheme.secondaryText)
+                .accessibilityValue("\(currentBeat + 1) of \(beatCount)")
+                .accessibilityIdentifier("visualNovelBeatPosition")
 
             CircleIconButton(
                 systemName: "speaker.wave.2.fill",

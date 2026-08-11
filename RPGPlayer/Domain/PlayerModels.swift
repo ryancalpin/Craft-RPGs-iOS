@@ -1,6 +1,6 @@
 import Foundation
 
-enum PlayerMode: Equatable, Sendable {
+enum PlayerMode: String, Codable, Equatable, Sendable {
     case transcript
     case visualNovel
 }

@@ -74,6 +74,10 @@ final class ImportFlowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
+            "-start-at-library",
+            "-persistence-test-store",
+            "task7-import-\(fixture)",
+            "-reset-persistence-test-store",
             "-import-flow-fixture",
             fixture
         ]

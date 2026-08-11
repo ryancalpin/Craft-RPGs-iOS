@@ -3,12 +3,12 @@ import SwiftUI
 struct PlayerShellView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var state: PlayerSessionState
+    @State private var fixtureState: PlayerSessionState
     @State private var measuredHeaderHeight = PlayerTheme.controlHeight
     @State private var headerFocusRequest: GameHeaderFocus?
     @State private var projectSearchText = ""
     @State private var packageSheetPresented = false
-    @State private var overviewDrawerState = OverviewDrawerState()
+    @State private var overviewDrawerState: OverviewDrawerState
     @State private var drawerPresentationSettled = true
     @State private var stableContainerSafeAreaBottom: CGFloat = 0
     @GestureState private var drawerDragOffset: CGFloat = 0
@@ -17,22 +17,30 @@ struct PlayerShellView: View {
     @State private var generationSteps: [String] = []
     @State private var generationTask: Task<Void, Never>?
     @State private var yourMoveFocusRequest = false
-    private let turnStreaming: any TurnStreaming
+    private let sessionModel: PlayerSessionModel?
+    private let turnStreaming: (any TurnStreaming)?
     private let exposesTurnContextForTesting: Bool
     private let forcedDynamicTypeSize: DynamicTypeSize?
     private let forcesReduceMotionForTesting: Bool
     private let forcesReduceTransparencyForTesting: Bool
     private let exposesAccessibilityEnvironmentForTesting: Bool
     private let campaignDataContext: CampaignDataContext?
+    private let exitCampaign: @MainActor () -> Void
     private let campaignDeleted: @MainActor () -> Void
+
+    private var state: PlayerSessionState {
+        sessionModel?.state ?? fixtureState
+    }
 
     init(
         arguments: [String] = ProcessInfo.processInfo.arguments,
         campaignDataContext: CampaignDataContext? = nil,
         campaignDeleted: @escaping @MainActor () -> Void = {}
     ) {
+        sessionModel = nil
         turnStreaming = SimulatedTurnStreaming(delay: .milliseconds(1_000))
         self.campaignDataContext = campaignDataContext
+        exitCampaign = {}
         self.campaignDeleted = campaignDeleted
         var initialState = PlayerSessionState.fixture
         var initialGenerationSteps: [String] = []
@@ -67,8 +75,35 @@ struct PlayerShellView: View {
         exposesAccessibilityEnvironmentForTesting = arguments.contains(
             "-accessibility-environment-test"
         )
-        _state = State(initialValue: initialState)
+        _fixtureState = State(initialValue: initialState)
         _generationSteps = State(initialValue: initialGenerationSteps)
+        _overviewDrawerState = State(initialValue: OverviewDrawerState())
+    }
+
+    init(
+        model: PlayerSessionModel,
+        campaignDataContext: CampaignDataContext,
+        exitCampaign: @escaping @MainActor () -> Void,
+        campaignDeleted: @escaping @MainActor () -> Void
+    ) {
+        guard let initialState = model.state else {
+            preconditionFailure("A live player session must be loaded before display")
+        }
+        sessionModel = model
+        turnStreaming = nil
+        self.campaignDataContext = campaignDataContext
+        self.exitCampaign = exitCampaign
+        self.campaignDeleted = campaignDeleted
+        exposesTurnContextForTesting = false
+        forcedDynamicTypeSize = nil
+        forcesReduceMotionForTesting = false
+        forcesReduceTransparencyForTesting = false
+        exposesAccessibilityEnvironmentForTesting = false
+        _fixtureState = State(initialValue: initialState)
+        _generationSteps = State(initialValue: [])
+        _overviewDrawerState = State(
+            initialValue: OverviewDrawerState(live: true)
+        )
     }
 
     var body: some View {
@@ -178,7 +213,11 @@ struct PlayerShellView: View {
                                 safeAreaBottom
                             ),
                             close: closeDrawer,
-                            openPackages: presentPackages
+                            openPackages: presentPackages,
+                            project: sessionModel?.project,
+                            exitCampaign: sessionModel == nil
+                                ? closeDrawer
+                                : exitCampaign
                         )
                             .frame(
                                 width: PlayerLayoutMetrics.projectDrawerWidth(
@@ -202,7 +241,8 @@ struct PlayerShellView: View {
                             safeAreaBottom: safeAreaBottom,
                             close: closeDrawer,
                             campaignDataContext: campaignDataContext,
-                            campaignDeleted: campaignDeleted
+                            campaignDeleted: campaignDeleted,
+                            liveContext: liveCampaignOverview
                         )
                             .frame(
                                 width: PlayerLayoutMetrics.overviewDrawerWidth(
@@ -282,6 +322,21 @@ struct PlayerShellView: View {
         )
     }
 
+    private var liveCampaignOverview: LiveCampaignOverview? {
+        guard let sessionModel,
+              let project = sessionModel.project,
+              let projection = sessionModel.projection else {
+            return nil
+        }
+        return LiveCampaignOverview(
+            campaignTitle: state.campaignTitle,
+            currentSceneTitle: projection.currentScene?.title,
+            recordCount: project.records.count,
+            submittedActionCount: projection.submittedActions.count,
+            pendingDecision: projection.pendingDecision
+        )
+    }
+
     @ViewBuilder
     private func presentationContent(
         availableHeight: CGFloat,
@@ -303,6 +358,7 @@ struct PlayerShellView: View {
                 TranscriptView(
                     messages: state.messages,
                     choiceCount: state.choices.count + 1,
+                    usesFixtureCopy: sessionModel == nil,
                     safeAreaTop: safeAreaTop,
                     safeAreaBottom: safeAreaBottom,
                     moveSheetReservation: moveSheetReservation(
@@ -415,6 +471,10 @@ struct PlayerShellView: View {
     }
 
     private func submitMove(_ submission: PlayerSubmission) {
+        guard let turnStreaming else {
+            send(.dismissTurnSheet)
+            return
+        }
         generationTask?.cancel()
         let requestID = UUID().uuidString
         pendingSubmission = submission
@@ -474,6 +534,13 @@ struct PlayerShellView: View {
     }
 
     private func send(_ action: PlayerAction) {
+        if let sessionModel {
+            Task { @MainActor in
+                try? await sessionModel.send(action)
+            }
+            return
+        }
+
         let tracksDrawerPresentation: Bool
         switch action {
         case .openDrawer, .closeDrawer:
@@ -488,7 +555,7 @@ struct PlayerShellView: View {
                 drawerAnimation,
                 completionCriteria: .logicallyComplete
             ) {
-                state.reduce(action)
+                fixtureState.reduce(action)
             } completion: {
                 drawerPresentationSettled = true
             }
@@ -498,24 +565,24 @@ struct PlayerShellView: View {
         switch action {
         case .presentTurnSheet, .dismissTurnSheet, .finishVisualNovel:
             withAnimation(drawerAnimation) {
-                state.reduce(action)
+                fixtureState.reduce(action)
             }
         case .setMode:
             withAnimation(.easeOut(duration: effectiveReduceMotion ? 0.12 : 0.20)) {
-                state.reduce(action)
+                fixtureState.reduce(action)
             }
         case .previousBeat, .nextBeat:
             if PlayerAccessibilityPolicy.animatesSpatialChanges(
                 reducesMotion: effectiveReduceMotion
             ) {
                 withAnimation(.easeOut(duration: 0.20)) {
-                    state.reduce(action)
+                    fixtureState.reduce(action)
                 }
             } else {
-                state.reduce(action)
+                fixtureState.reduce(action)
             }
         default:
-            state.reduce(action)
+            fixtureState.reduce(action)
         }
     }
 

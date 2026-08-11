@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 import Observation
-import SwiftData
 
 enum ImportProgressPhase: Int, CaseIterable, Identifiable, Sendable {
     case copy
@@ -79,57 +78,16 @@ final class ImportCoordinator {
 
     private let pipeline: ImportPipeline
     private let fixture: ImportFlowFixture?
-    private let campaignDataManager: CampaignDataManager
-    private let recoveryBundleWriter: RecoveryBundleWriter
     private var preparation: PreparedCampaignImport?
     private var pendingStagedImport: StagedImport?
     private var workTask: Task<Void, Never>?
 
     init(
         pipeline: ImportPipeline,
-        fixture: ImportFlowFixture? = nil,
-        campaignDataManager: CampaignDataManager,
-        recoveryBundleWriter: RecoveryBundleWriter
+        fixture: ImportFlowFixture? = nil
     ) {
         self.pipeline = pipeline
         self.fixture = fixture
-        self.campaignDataManager = campaignDataManager
-        self.recoveryBundleWriter = recoveryBundleWriter
-    }
-
-    static func live(arguments: [String]) -> ImportCoordinator {
-        let configuration = ModelConfiguration()
-        let container: ModelContainer
-        do {
-            container = try ModelContainer(
-                for: CampaignEventRecord.self,
-                ImportedAssetRecord.self,
-                ProjectionCheckpointRecord.self,
-                configurations: configuration
-            )
-        } catch {
-            preconditionFailure("Unable to open the campaign store")
-        }
-
-        let store = SwiftDataCampaignStore(modelContainer: container)
-        let fixture = ImportFlowFixture(arguments: arguments)
-        return ImportCoordinator(
-            pipeline: ImportPipeline(
-                store: store
-            ),
-            fixture: fixture,
-            campaignDataManager: CampaignDataManager(store: store),
-            recoveryBundleWriter: RecoveryBundleWriter(store: store)
-        )
-    }
-
-    func campaignDataContext(for campaignID: UUID) -> CampaignDataContext {
-        CampaignDataContext(
-            campaignID: campaignID,
-            campaignTitle: review?.title ?? "Campaign",
-            manager: campaignDataManager,
-            recoveryBundleWriter: recoveryBundleWriter
-        )
     }
 
     func start() {

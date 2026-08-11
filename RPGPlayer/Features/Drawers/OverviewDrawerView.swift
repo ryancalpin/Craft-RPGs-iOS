@@ -39,6 +39,7 @@ struct OverviewDrawerView: View {
     let close: () -> Void
     var campaignDataContext: CampaignDataContext? = nil
     var campaignDeleted: @MainActor () -> Void = {}
+    var liveContext: LiveCampaignOverview? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -54,14 +55,29 @@ struct OverviewDrawerView: View {
 
             switch state.selectedSection {
             case .overview:
-                CampaignOverviewContent(state: $state)
+                if let liveContext {
+                    LiveCampaignOverviewContent(context: liveContext)
+                } else {
+                    CampaignOverviewContent(state: $state)
+                }
             case .assistant:
-                CampaignAssistantContent(
-                    message: $state.assistantDraft,
-                    messages: $state.assistantMessages,
-                    actionsExpanded: $state.assistantActionsExpanded,
-                    scrollPosition: $state.assistantScrollPosition
-                )
+                if liveContext == nil {
+                    CampaignAssistantContent(
+                        message: $state.assistantDraft,
+                        messages: $state.assistantMessages,
+                        actionsExpanded: $state.assistantActionsExpanded,
+                        scrollPosition: $state.assistantScrollPosition
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Assistant",
+                        systemImage: "sparkles",
+                        description: Text(
+                            "Campaign assistance will be connected in a later phase."
+                        )
+                    )
+                    .foregroundStyle(PlayerTheme.secondaryText)
+                }
             }
         }
         .padding(.top, safeAreaTop)
@@ -95,6 +111,49 @@ struct OverviewDrawerState {
     var assistantActionsExpanded = true
     var assistantMessages = AssistantFixtureMessage.initialMessages
     var assistantScrollPosition: Int?
+
+    init(live: Bool = false) {
+        assistantMessages = live
+            ? []
+            : AssistantFixtureMessage.initialMessages
+    }
+}
+
+struct LiveCampaignOverview: Equatable, Sendable {
+    let campaignTitle: String
+    let currentSceneTitle: String?
+    let recordCount: Int
+    let submittedActionCount: Int
+    let pendingDecision: String?
+}
+
+private struct LiveCampaignOverviewContent: View {
+    let context: LiveCampaignOverview
+
+    var body: some View {
+        List {
+            Section("Campaign") {
+                LabeledContent("Title", value: context.campaignTitle)
+                if let currentSceneTitle = context.currentSceneTitle {
+                    LabeledContent("Current scene", value: currentSceneTitle)
+                }
+            }
+            Section("State") {
+                LabeledContent("Imported records", value: "\(context.recordCount)")
+                LabeledContent(
+                    "Submitted actions",
+                    value: "\(context.submittedActionCount)"
+                )
+                if let pendingDecision = context.pendingDecision,
+                   pendingDecision.isEmpty == false {
+                    Text(pendingDecision)
+                        .foregroundStyle(PlayerTheme.secondaryText)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
 }
 
 private struct OverviewDrawerHeader: View {

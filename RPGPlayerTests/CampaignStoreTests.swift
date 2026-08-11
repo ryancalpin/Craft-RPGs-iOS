@@ -5,6 +5,87 @@ import Testing
 
 struct CampaignStoreTests {
     @Test
+    func campaignCatalogIsEmptyBeforeAnyImport() async throws {
+        let store = try makeStore()
+
+        #expect(try await store.campaigns().isEmpty)
+    }
+
+    @Test
+    func campaignCatalogReturnsNewestImportedCampaignFirst() async throws {
+        let store = try makeStore()
+        let olderCampaignID = try fixtureUUID(401)
+        let newerCampaignID = try fixtureUUID(402)
+
+        _ = try await store.append(
+            batch: [
+                try makeImportedEvent(
+                    campaignID: olderCampaignID,
+                    eventID: 501,
+                    requestID: 601,
+                    title: "Older Campaign",
+                    projectID: "project-older",
+                    timestamp: Date(timeIntervalSince1970: 100)
+                )
+            ],
+            expectedSequence: 0
+        )
+        _ = try await store.append(
+            batch: [
+                try makeImportedEvent(
+                    campaignID: newerCampaignID,
+                    eventID: 502,
+                    requestID: 602,
+                    title: "Newer Campaign",
+                    projectID: "project-newer",
+                    timestamp: Date(timeIntervalSince1970: 200)
+                )
+            ],
+            expectedSequence: 0
+        )
+
+        #expect(
+            try await store.campaigns() == [
+                CampaignSummary(
+                    campaignID: newerCampaignID,
+                    title: "Newer Campaign",
+                    projectID: "project-newer",
+                    importedAt: Date(timeIntervalSince1970: 200)
+                ),
+                CampaignSummary(
+                    campaignID: olderCampaignID,
+                    title: "Older Campaign",
+                    projectID: "project-older",
+                    importedAt: Date(timeIntervalSince1970: 100)
+                )
+            ]
+        )
+    }
+
+    @Test
+    func deletingCampaignRemovesItFromCampaignCatalog() async throws {
+        let store = try makeStore()
+        let campaignID = try fixtureUUID(403)
+        _ = try await store.append(
+            batch: [
+                try makeImportedEvent(
+                    campaignID: campaignID,
+                    eventID: 503,
+                    requestID: 603,
+                    title: "Delete Me",
+                    projectID: "project-delete",
+                    timestamp: Date(timeIntervalSince1970: 300)
+                )
+            ],
+            expectedSequence: 0
+        )
+
+        try await store.deleteCampaign(campaignID)
+
+        #expect(try await store.campaigns().isEmpty)
+    }
+
+    @Test
     func batchAppendAllowsSharedRequestIDAndPreservesTheFrozenEnvelope() async throws {
         let store = try makeStore()
         let campaignID = try fixtureUUID(1)
@@ -366,6 +447,31 @@ private func makeEvent(
                 sceneID: "scene-\(eventID)",
                 title: "Scene \(eventID)",
                 summary: "Deterministic fixture"
+            )
+        )
+    )
+}
+
+private func makeImportedEvent(
+    campaignID: UUID,
+    eventID: Int,
+    requestID: Int,
+    title: String,
+    projectID: String,
+    timestamp: Date
+) throws -> CampaignEvent {
+    CampaignEvent(
+        id: try fixtureUUID(eventID),
+        campaignID: campaignID,
+        sequence: 0,
+        requestID: try fixtureUUID(requestID),
+        timestamp: timestamp,
+        schemaVersion: 1,
+        payload: .campaignImported(
+            CampaignImportedPayload(
+                projectID: projectID,
+                campaignTitle: title,
+                manifestHash: "sha256:catalog"
             )
         )
     )

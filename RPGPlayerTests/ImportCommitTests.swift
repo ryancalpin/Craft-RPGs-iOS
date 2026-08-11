@@ -268,6 +268,10 @@ private actor RecordingImportStore: CampaignStore {
         self.shouldFailAppend = shouldFailAppend
     }
 
+    func campaigns() -> [CampaignSummary] {
+        []
+    }
+
     func append(
         batch: [CampaignEvent],
         assets: [ImportedAsset],

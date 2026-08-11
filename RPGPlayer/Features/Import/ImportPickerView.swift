@@ -68,7 +68,7 @@ struct ImportPickerView: View {
 }
 
 @MainActor
-private struct ImportFlowSheet: View {
+struct ImportFlowSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isFileImporterPresented = false
 

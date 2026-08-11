@@ -3,6 +3,7 @@ import SwiftUI
 struct TranscriptView: View {
     let messages: [GMMessage]
     let choiceCount: Int
+    let usesFixtureCopy: Bool
     let safeAreaTop: CGFloat
     let safeAreaBottom: CGFloat
     let moveSheetReservation: CGFloat?
@@ -27,7 +28,10 @@ struct TranscriptView: View {
                 VStack(spacing: 0) {
                     LazyVStack(spacing: 18) {
                         ForEach(messages) { message in
-                            TranscriptMessageView(message: message)
+                            TranscriptMessageView(
+                                message: message,
+                                usesFixtureCopy: usesFixtureCopy
+                            )
                         }
                     }
                     .padding(18)
@@ -93,6 +97,7 @@ private struct TranscriptMessageView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.playerReduceMotionOverride) private var reduceMotionOverride
     let message: GMMessage
+    let usesFixtureCopy: Bool
     @State private var actionsExpanded = false
 
     var body: some View {
@@ -134,7 +139,11 @@ private struct TranscriptMessageView: View {
                 .accessibilityIdentifier("transcriptActionsDisclosure")
 
                 if actionsExpanded {
-                    Text("\(message.actionCount) fixture actions recorded for this turn.")
+                    Text(
+                        usesFixtureCopy
+                            ? "\(message.actionCount) fixture actions recorded for this turn."
+                            : "\(message.actionCount) actions recorded for this turn."
+                    )
                         .font(.subheadline)
                         .foregroundStyle(PlayerTheme.secondaryText)
                         .padding(.bottom, 16)
@@ -209,6 +218,7 @@ private struct TranscriptDialogueBlock: View {
         TranscriptView(
             messages: PlayerSessionState.fixture.messages,
             choiceCount: PlayerSessionState.fixture.choices.count,
+            usesFixtureCopy: true,
             safeAreaTop: 59,
             safeAreaBottom: 34,
             moveSheetReservation: nil,

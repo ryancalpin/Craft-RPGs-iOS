@@ -10,6 +10,10 @@ final class CampaignDeletionTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
+            "-start-at-library",
+            "-persistence-test-store",
+            "task8-campaign-deletion",
+            "-reset-persistence-test-store",
             "-import-flow-fixture",
             "success"
         ]

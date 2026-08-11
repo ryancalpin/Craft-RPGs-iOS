@@ -46,23 +46,25 @@ struct ProjectDrawerView: View {
     let safeAreaBottom: CGFloat
     let close: () -> Void
     let openPackages: () -> Void
+    var project: NormalizedProject? = nil
+    var exitCampaign: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             ProjectDrawerHeader(
                 presentationSettled: presentationSettled,
-                close: close
+                exitCampaign: exitCampaign ?? close
             )
 
             ProjectSectionTabs(selection: $selectedSection) { section in
-                if section == .packages {
+                if section == .packages, project == nil {
                     openPackages()
                 } else {
                     selectedSection = section
                 }
             }
 
-            if selectedSection == .files {
+            if selectedSection == .files, project == nil {
                 ProjectActionRow()
                     .padding(.horizontal, 12)
                     .padding(.bottom, 4)
@@ -72,22 +74,48 @@ struct ProjectDrawerView: View {
 
             switch selectedSection {
             case .files:
-                ProjectFileTree(
-                    charactersExpanded: $charactersExpanded,
-                    presentationSettled: presentationSettled
-                )
+                if let project {
+                    LiveProjectFileTree(project: project)
+                } else {
+                    ProjectFileTree(
+                        charactersExpanded: $charactersExpanded,
+                        presentationSettled: presentationSettled
+                    )
+                }
             case .search:
-                ProjectSearch(
-                    searchText: $searchText,
-                    searchFocused: $searchFocused
-                )
+                if let project {
+                    LiveProjectSearch(
+                        project: project,
+                        searchText: $searchText
+                    )
+                } else {
+                    ProjectSearch(
+                        searchText: $searchText,
+                        searchFocused: $searchFocused
+                    )
+                }
             case .packages:
-                Color.clear
+                if project == nil {
+                    Color.clear
+                } else {
+                    ContentUnavailableView(
+                        "Packages",
+                        systemImage: "square.grid.2x2",
+                        description: Text(
+                            "No packages are connected to this imported campaign."
+                        )
+                    )
+                    .foregroundStyle(PlayerTheme.secondaryText)
+                }
             }
 
             Divider().overlay(PlayerTheme.panelStroke)
-            ProjectDrawerFooter()
-                .offset(y: searchFocused ? safeAreaBottom : 0)
+            if project == nil {
+                ProjectDrawerFooter()
+                    .offset(y: searchFocused ? safeAreaBottom : 0)
+            } else {
+                LiveProjectFooter()
+            }
         }
         .padding(.top, safeAreaTop)
         .padding(.bottom, safeAreaBottom)
@@ -321,11 +349,11 @@ private struct ProjectDrawerHeader: View {
     @AccessibilityFocusState private var closeFocused: Bool
 
     let presentationSettled: Bool
-    let close: () -> Void
+    let exitCampaign: () -> Void
 
     var body: some View {
         HStack {
-            Button(action: close) {
+            Button(action: exitCampaign) {
                 Label("Exit Game", systemImage: "chevron.left")
                     .font(.subheadline.weight(.semibold))
                     .frame(minHeight: 44)
@@ -344,6 +372,91 @@ private struct ProjectDrawerHeader: View {
                 closeFocused = true
             }
         }
+    }
+}
+
+private struct LiveProjectFileTree: View {
+    let project: NormalizedProject
+
+    var body: some View {
+        List {
+            if project.folders.isEmpty == false {
+                Section("Folders") {
+                    ForEach(project.folders, id: \.id) { folder in
+                        Label(folder.name, systemImage: "folder")
+                    }
+                }
+            }
+            Section("Records") {
+                ForEach(project.records, id: \.id) { record in
+                    Label(recordLabel(record), systemImage: "doc.text")
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .accessibilityIdentifier("projectFileTree")
+    }
+
+    private func recordLabel(_ record: NormalizedRecord) -> String {
+        for identifier in ["title", "name"] {
+            if let field = record.fields.first(where: {
+                $0.id.caseInsensitiveCompare(identifier) == .orderedSame
+            }), case .string(let value) = field.value {
+                return value
+            }
+        }
+        return record.id
+    }
+}
+
+private struct LiveProjectSearch: View {
+    let project: NormalizedProject
+    @Binding var searchText: String
+
+    private var matches: [NormalizedRecord] {
+        guard searchText.isEmpty == false else { return project.records }
+        return project.records.filter { record in
+            record.id.localizedCaseInsensitiveContains(searchText)
+                || record.fields.contains { field in
+                    guard case .string(let value) = field.value else {
+                        return false
+                    }
+                    return value.localizedCaseInsensitiveContains(searchText)
+                }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            TextField("Search imported records", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("projectSearchField")
+            List(matches, id: \.id) { record in
+                Text(record.id)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+        .padding(12)
+    }
+}
+
+private struct LiveProjectFooter: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "iphone")
+                .frame(width: 34, height: 34)
+                .background(Color.white.opacity(0.07), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Local Player").font(.subheadline.weight(.semibold))
+                Text("Imported campaign on this device")
+                    .font(.caption)
+                    .foregroundStyle(PlayerTheme.secondaryText)
+            }
+            Spacer()
+        }
+        .padding(12)
     }
 }
 

@@ -1,55 +1,142 @@
+import Observation
 import SwiftUI
 
 @main
 struct RPGPlayerApp: App {
+    @State private var rootModel: RPGPlayerRootModel
+
+    init() {
+        _rootModel = State(
+            initialValue: RPGPlayerRootModel(
+                arguments: ProcessInfo.processInfo.arguments
+            )
+        )
+    }
+
     var body: some Scene {
         WindowGroup {
-            RPGPlayerRootView()
+            RPGPlayerRootView(model: rootModel)
         }
     }
 }
 
 @MainActor
-private struct RPGPlayerRootView: View {
-    private enum Destination {
-        case library(ImportCoordinator)
-        case player(CampaignDataContext?, ImportCoordinator?)
-    }
+@Observable
+final class RPGPlayerRootModel {
+    let arguments: [String]
+    let graph: AppDependencyGraph?
 
-    @State private var destination: Destination
-    private let arguments: [String]
-
-    init(arguments: [String] = ProcessInfo.processInfo.arguments) {
+    init(arguments: [String]) {
         self.arguments = arguments
         if arguments.contains("-fixture") {
-            _destination = State(initialValue: .player(nil, nil))
+            graph = nil
         } else {
-            _destination = State(
-                initialValue: .library(
-                    ImportCoordinator.live(arguments: arguments)
-                )
-            )
+            graph = AppDependencyGraph(arguments: arguments)
         }
+    }
+}
+
+@MainActor
+struct RPGPlayerRootView: View {
+    let model: RPGPlayerRootModel
+
+    @ViewBuilder
+    var body: some View {
+        if model.arguments.contains("-fixture") {
+            PlayerShellView(arguments: model.arguments)
+        } else if let graph = model.graph {
+            CampaignAppRoot(graph: graph)
+        }
+    }
+}
+
+@MainActor
+private struct CampaignAppRoot: View {
+    private enum Route: Hashable {
+        case player(UUID)
+    }
+
+    @State private var path: [Route] = []
+    @State private var didStart = false
+    @State private var libraryModel: CampaignLibraryModel
+
+    private let graph: AppDependencyGraph
+
+    init(graph: AppDependencyGraph) {
+        self.graph = graph
+        _libraryModel = State(
+            initialValue: CampaignLibraryModel(
+                store: graph.store,
+                projectionLoader: graph.projectionLoader
+            )
+        )
     }
 
     var body: some View {
-        switch destination {
-        case .library(let coordinator):
-            ImportLibraryHostView(coordinator: coordinator) { campaignID in
-                destination = .player(
-                    coordinator.campaignDataContext(for: campaignID),
-                    coordinator
-                )
-            }
-        case .player(let campaignDataContext, let coordinator):
-            PlayerShellView(
-                arguments: arguments,
-                campaignDataContext: campaignDataContext
-            ) {
-                if let coordinator {
-                    destination = .library(coordinator)
+        NavigationStack(path: $path) {
+            CampaignLibraryView(
+                model: libraryModel,
+                importCoordinator: graph.importCoordinator,
+                recoveryBundleReader: graph.recoveryBundleReader,
+                openCampaign: openCampaign
+            )
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .player(let campaignID):
+                    CampaignPlayerHost(
+                        graph: graph,
+                        campaignID: campaignID,
+                        exitCampaign: { exitCampaign(campaignID) },
+                        campaignDeleted: { campaignDeleted(campaignID) }
+                    )
                 }
             }
+        }
+        .preferredColorScheme(.dark)
+        .task {
+            guard didStart == false else { return }
+            didStart = true
+            await libraryModel.refresh()
+            guard graph.startsAtLibrary == false else { return }
+            do {
+                guard let campaignID = try await graph.presentationStore
+                    .activeCampaignID() else {
+                    return
+                }
+                if libraryModel.contains(campaignID) {
+                    path = [.player(campaignID)]
+                } else {
+                    try await graph.presentationStore.setActiveCampaign(nil)
+                }
+            } catch {
+                path = []
+            }
+        }
+    }
+
+    private func openCampaign(_ campaignID: UUID) {
+        Task { @MainActor in
+            do {
+                try await graph.presentationStore.setActiveCampaign(campaignID)
+                path = [.player(campaignID)]
+            } catch {
+                path = []
+            }
+        }
+    }
+
+    private func exitCampaign(_ campaignID: UUID) {
+        Task { @MainActor in
+            try? await graph.presentationStore.setActiveCampaign(nil)
+            path = []
+        }
+    }
+
+    private func campaignDeleted(_ campaignID: UUID) {
+        Task { @MainActor in
+            try? await graph.presentationStore.clearCampaign(campaignID)
+            await libraryModel.refresh()
+            path = []
         }
     }
 }

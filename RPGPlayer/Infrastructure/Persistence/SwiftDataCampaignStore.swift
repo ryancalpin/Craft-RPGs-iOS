@@ -6,6 +6,31 @@ public actor SwiftDataCampaignStore: CampaignStore {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
+    public func campaigns() throws -> [CampaignSummary] {
+        let importedKind = CampaignEventPayload.Kind.campaignImported.rawValue
+        let descriptor = FetchDescriptor<CampaignEventRecord>(
+            predicate: #Predicate {
+                $0.sequence == 1 && $0.payloadType == importedKind
+            },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+
+        return try modelContext.fetch(descriptor).map { record in
+            guard case .campaignImported(let payload) = try decodeEvent(record).payload
+            else {
+                throw CampaignStoreError.invalidStoredPayload(
+                    eventID: record.eventID
+                )
+            }
+            return CampaignSummary(
+                campaignID: record.campaignID,
+                title: payload.campaignTitle,
+                projectID: payload.projectID,
+                importedAt: record.timestamp
+            )
+        }
+    }
+
     /// A request ID identifies one atomic append operation. Phase 3 must place
     /// the submitted action and its terminal/final events in the same batch;
     /// every event in that batch intentionally carries the same request ID.

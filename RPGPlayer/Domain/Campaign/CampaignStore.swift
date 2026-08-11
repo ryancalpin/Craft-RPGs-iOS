@@ -1,6 +1,8 @@
 import Foundation
 
 public protocol CampaignStore: Sendable {
+    func campaigns() async throws -> [CampaignSummary]
+
     func append(
         batch: [CampaignEvent],
         assets: [ImportedAsset],
@@ -51,6 +53,27 @@ public extension CampaignStore {
         assets: [ImportedAsset]
     ) async throws {
         throw CampaignStoreError.persistenceFailure
+    }
+}
+
+public struct CampaignSummary: Identifiable, Codable, Equatable, Sendable {
+    public let campaignID: UUID
+    public let title: String
+    public let projectID: String
+    public let importedAt: Date
+
+    public var id: UUID { campaignID }
+
+    public init(
+        campaignID: UUID,
+        title: String,
+        projectID: String,
+        importedAt: Date
+    ) {
+        self.campaignID = campaignID
+        self.title = title
+        self.projectID = projectID
+        self.importedAt = importedAt
     }
 }
 
