@@ -4,11 +4,13 @@
 **Visual authority:** the private 57-second iPhone recording, then `docs/visual-audit/native-craft-mobile-fidelity.md`
 **Current gate status:** **PASS — the canonical Phase 1 visual-fidelity gate is accepted.**
 
+**Current cross-phase note (August 12, 2026):** This checklist remains the contemporaneous Phase 1 evidence record. Phase 2 is now complete, and Phase 3 Tasks 1–3 are implemented through `4b5140e`; a fresh post-Task-3 Visual Novel regression passed without changing the accepted geometry. Portable continuation status lives in `docs/handoffs/2026-08-12-cloud-continuation.md`.
+
 This document deliberately separates source, automated Simulator, visual-comparison, archive, physical-device, and real-VoiceOver evidence. Passing XCTest does not establish visual fidelity, and Simulator evidence does not satisfy a physical-device or real-VoiceOver requirement.
 
 ## Status and Evidence Rules
 
-- **Source-verified:** inspected in the current worktree, whose committed baseline is `e5a8542` plus in-progress Task 8 changes; no runtime claim.
+- **Source-verified:** inspected against the accepted Phase 1 implementation committed through `4413e20`; later-phase regression evidence is called out separately and does not rewrite the original gate scope.
 - **Simulator-verified:** backed by a named `.xcresult` from the current Task 8 implementation lineage.
 - **Visual-verified:** requires a fresh, same-viewport side-by-side comparison between the current app capture and the corresponding recording frame.
 - **Device/VoiceOver:** must be performed on physical hardware or with real VoiceOver; XCTest accessibility queries do not count.

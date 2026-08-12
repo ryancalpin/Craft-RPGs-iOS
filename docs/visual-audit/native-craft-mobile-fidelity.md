@@ -3,7 +3,7 @@
 **Audit date:** August 9, 2026  
 **Source:** User-supplied 57-second iPhone recording, 1320×2868 pixels  
 **Scope:** Plan-level visual and interaction verification before implementation  
-**Status:** The implementation plan covers every observed primary state. Runtime fidelity remains unverified until the Phase 1 SwiftUI app can be captured at the same viewport.
+**Status (updated August 12, 2026):** The canonical Phase 1 Simulator visual-fidelity gate passed on August 10, 2026. All nine required states were captured at the recording's 440×956-point (1320×2868-pixel) viewport and accepted beside the recording-derived authority. Physical-device, real-VoiceOver, broader device-matrix, and later real-data/provider checks remain open in `docs/qa/native-player-shell-checklist.md`.
 
 ## Audit Method
 
@@ -26,7 +26,7 @@ Ten frames were extracted from the recording in this audit run and inspected ind
 
 ### 1. Closed Player Canvas and Generation
 
-**Health:** Plan-aligned; runtime capture pending.
+**Health:** Canonical Simulator capture accepted; physical-device evidence remains open.
 
 Private source frame: `vn-generation.png`.
 
@@ -46,14 +46,14 @@ Implementation mapping:
 
 Acceptance:
 
-- At 430×932 points, scene reaches all four display edges.
+- At the 440×956-point recording viewport, scene reaches all four display edges.
 - Header title remains centered independently of unequal side-button widths.
 - Generation card stays above the home indicator and does not jump as status copy changes.
 - Disclosure reveals sanitized work steps within the same visual system.
 
 ### 2. Right Drawer — Overview
 
-**Health:** Plan-aligned; runtime capture pending.
+**Health:** Canonical Simulator capture accepted; imported-data behavior remains Phase 2+ scope.
 
 Private source frame: `right-overview.png`.
 
@@ -79,7 +79,7 @@ Acceptance:
 
 ### 3. Right Drawer — Assistant
 
-**Health:** Plan-aligned; assistant data policy requires implementation validation.
+**Health:** Canonical fixture geometry/behavior accepted; real assistant mutations remain Phase 3 scope.
 
 Private source frame: `right-assistant.png`.
 
@@ -104,7 +104,7 @@ Acceptance:
 
 ### 4. Left Drawer — Project Files
 
-**Health:** Plan-aligned; runtime capture pending.
+**Health:** Canonical Simulator capture accepted; imported file data remains Phase 2+ scope.
 
 Private source frame: `left-files.png`.
 
@@ -129,7 +129,7 @@ Acceptance:
 
 ### 5. Left Drawer — Search and Keyboard
 
-**Health:** Plan-aligned; keyboard avoidance must be verified on device.
+**Health:** Canonical Simulator capture accepted; physical-device keyboard evidence remains open.
 
 Private source frame: `left-search.png`.
 
@@ -153,7 +153,7 @@ Acceptance:
 
 ### 6. Visual Novel — Title Beat
 
-**Health:** Plan-aligned; runtime typography/crop pending.
+**Health:** Canonical Simulator typography and crop accepted; physical-device evidence remains open.
 
 Private source frame: `vn-title.png`.
 
@@ -177,7 +177,7 @@ Acceptance:
 
 ### 7. Visual Novel — Dialogue Beat
 
-**Health:** Plan-aligned; runtime typography/cutout pending.
+**Health:** Canonical Simulator typography and cutout accepted; physical-device evidence remains open.
 
 Private source frame: `vn-dialogue.png`.
 
@@ -223,7 +223,7 @@ Acceptance:
 
 ### 9. Transcript and Collapsed Your Move
 
-**Health:** Plan-aligned; long-content performance pending.
+**Health:** Canonical Simulator capture accepted; long-content performance remains a later gate.
 
 Private source frame: `transcript.png`.
 
@@ -249,7 +249,7 @@ Acceptance:
 
 ### 10. Expanded Your Move
 
-**Health:** Plan-aligned; keyboard/custom-input variants pending.
+**Health:** Canonical expanded-sheet capture accepted; physical-device keyboard/custom-input evidence remains open.
 
 Private source frame: `your-move.png`.
 
@@ -313,4 +313,4 @@ These are open verification items, not screenshot-proven failures:
 
 ## Audit Conclusion
 
-The end-to-end plan matches the recorded Craft mobile hierarchy and includes explicit visual regression gates. The implementation must not proceed past Phase 1 acceptance until the nine canonical app captures are compared side-by-side with this evidence and every visible mismatch in crop, geometry, typography, material, and control placement is resolved.
+The end-to-end plan matches the recorded Craft mobile hierarchy and includes explicit visual regression gates. The required Phase 1 comparison was completed and the canonical Simulator gate passed; later work may proceed while preserving the accepted geometry. Physical-device, real-VoiceOver, broader device-matrix, real-data/provider, and release evidence remain separate open gates.

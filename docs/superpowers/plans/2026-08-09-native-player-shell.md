@@ -8,6 +8,8 @@
 
 **Tech Stack:** Swift 6, SwiftUI, XCTest/XCUITest, ActivityKit, WidgetKit, Xcode 26, XcodeGen
 
+**Implementation status (August 12, 2026): COMPLETE.** Tasks 1–8 are committed from `97f8243` through `4413e20`. The canonical nine-state Simulator visual-fidelity gate is accepted in `docs/qa/native-player-shell-checklist.md`. The unchecked steps below are retained as the original executable TDD script rather than a live status tracker. Physical-device, real-VoiceOver, broader device-matrix, and release checks remain explicitly separate.
+
 ## Global Constraints
 
 - iOS 18.0 minimum deployment target.

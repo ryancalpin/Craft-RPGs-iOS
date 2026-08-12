@@ -8,6 +8,8 @@
 
 **Tech Stack:** Swift 6, SwiftUI, SwiftData, UniformTypeIdentifiers, CryptoKit, ZIPFoundation locked through Package.resolved, XCTest, XCUITest
 
+**Implementation status (August 12, 2026): COMPLETE.** Tasks 1–9 and the closing real folder/archive pipeline acceptance are committed from `a9bf17b` through `ad16d16`. The Phase 2 product gate passed for import validation, deterministic replay/checkpoints, relaunch, recovery round-trip, and Phase 1 visual regression. The unchecked steps below are retained as the original executable TDD script rather than a live status tracker. Production Files-picker interaction with a user-selected export remains part of the later local real-app pass.
+
 ## Global Constraints
 
 - Execute after Phase 1.

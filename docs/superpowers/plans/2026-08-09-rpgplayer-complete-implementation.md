@@ -8,6 +8,23 @@
 
 **Tech Stack:** Swift 6, SwiftUI, Observation, SwiftData, XCTest/XCUITest, ActivityKit, WidgetKit, AVFoundation, Security/Keychain, URLSession, UniformTypeIdentifiers, Cloudflare Workers, Durable Objects with SQLite storage, Workflows, R2, TypeScript, Zod, Vitest
 
+## Current Implementation Status
+
+**Last reconciled:** August 12, 2026
+**Code baseline:** `main` through `4b5140e` (`feat: add bounded streaming HTTP transport`)
+**Continuation:** `docs/handoffs/2026-08-12-cloud-continuation.md`
+
+| Phase | Status | Evidence and next action |
+|---|---|---|
+| 1 — Native player shell | **Complete** | Canonical Simulator visual-fidelity gate accepted; implementation commits `97f8243` through `4413e20`. Physical-device and real-VoiceOver checks remain release evidence, not Phase 1 gate blockers. |
+| 2 — Import and event store | **Complete** | Tasks 1–9 plus real folder/archive acceptance are committed through `ad16d16`; deterministic import, replay, relaunch, recovery, and Phase 1 visual regression gates passed. |
+| 3 — AI GM providers and tools | **In progress** | Tasks 1–3 are committed as `b326ebc`, `f91dd24`, and `4b5140e`. Start Task 4: OpenAI and OpenRouter adapters. Tasks 4–11 and the real BYOK completion gate remain. |
+| 4 — ElevenLabs/native voice | **Not started** | Begin only after Phase 3 contracts and completion gate are accepted. |
+| 5 — Durable turns/Live Activity | **Not started** | May begin after Phase 3; server TTS additionally depends on Phase 4. |
+| 6 — TestFlight hardening | **Not started** | Requires Phases 1–5. |
+
+The task checklists in the phase plans remain the executable TDD scripts. A checked item means implemented and verified in its recorded scope; it does not substitute for physical-device, real-provider, or TestFlight acceptance.
+
 ## Global Constraints
 
 - The supplied August 9, 2026 iPhone recording is the visual and interaction source of truth.
@@ -25,20 +42,21 @@
 
 ## Delivery Map
 
-| Phase | Executable plan | Demonstrable outcome | Exit dependency |
-|---|---|---|---|
-| 1 | `2026-08-09-native-player-shell.md` | Recording-faithful shell with deterministic fixtures | None |
-| 2 | `2026-08-09-cdf-import-event-store.md` | Import a project and persist/replay a local campaign | Phase 1 |
-| 3 | `2026-08-09-ai-gm-providers-tools.md` | Play complete on-device AI turns with validated tools | Phase 2 |
-| 4 | `2026-08-09-elevenlabs-native-voice.md` | Assign custom voices and narrate/auto-advance beats | Phase 3 |
-| 5 | `2026-08-09-durable-turns-live-activity.md` | Continue opted-in turns durably with Dynamic Island status | Phase 3; Phase 4 for server TTS |
-| 6 | `2026-08-09-testflight-hardening.md` | Accessible, recoverable, performant TestFlight build | Phases 1–5 |
+| Phase | Executable plan | Demonstrable outcome | Exit dependency | Current state |
+|---|---|---|---|---|
+| 1 | `2026-08-09-native-player-shell.md` | Recording-faithful shell with deterministic fixtures | None | Complete |
+| 2 | `2026-08-09-cdf-import-event-store.md` | Import a project and persist/replay a local campaign | Phase 1 | Complete |
+| 3 | `2026-08-09-ai-gm-providers-tools.md` | Play complete on-device AI turns with validated tools | Phase 2 | Tasks 1–3 complete; Task 4 next |
+| 4 | `2026-08-09-elevenlabs-native-voice.md` | Assign custom voices and narrate/auto-advance beats | Phase 3 | Not started |
+| 5 | `2026-08-09-durable-turns-live-activity.md` | Continue opted-in turns durably with Dynamic Island status | Phase 3; Phase 4 for server TTS | Not started |
+| 6 | `2026-08-09-testflight-hardening.md` | Accessible, recoverable, performant TestFlight build | Phases 1–5 | Not started |
 
 ## Cross-Phase Interface Freeze
 
 The following types are compatibility boundaries. Changes require migration tests and updates to every dependent phase:
 
 ~~~swift
+// Implemented and compatibility-tested in Phase 2.
 public struct CampaignEvent: Codable, Identifiable, Sendable, Equatable {
     public let id: UUID
     public let campaignID: UUID
@@ -49,6 +67,7 @@ public struct CampaignEvent: Codable, Identifiable, Sendable, Equatable {
     public let payload: CampaignEventPayload
 }
 
+// Implemented and compatibility-tested in Phase 3 Task 1.
 public struct TurnRequest: Codable, Sendable, Equatable {
     public let requestID: UUID
     public let campaignID: UUID
@@ -57,6 +76,7 @@ public struct TurnRequest: Codable, Sendable, Equatable {
     public let context: TurnContext
 }
 
+// Implemented and compatibility-tested in Phase 3 Task 1.
 public struct TurnEnvelope: Codable, Sendable, Equatable {
     public let requestID: UUID
     public let narration: [StoryBlock]
@@ -67,6 +87,13 @@ public struct TurnEnvelope: Codable, Sendable, Equatable {
     public let usage: ProviderUsage?
 }
 
+public struct VersionedTurnEnvelope: Codable, Sendable, Equatable {
+    public static let maximumEncodedBytes = 8_000_000
+    public let schemaVersion: Int // currently 1
+    public let envelope: TurnEnvelope
+}
+
+// Planned Phase 5 boundary; not implemented yet.
 public struct JobEvent: Codable, Identifiable, Sendable, Equatable {
     public let id: UUID
     public let jobID: UUID
@@ -88,34 +115,35 @@ Rules:
 ## Repository Layout
 
 ~~~
-RPGPlayer/
+.
 ├── project.yml
-├── App/
+├── RPGPlayer/
+│   ├── App/
+│   ├── Features/
+│   │   ├── Drawers/
+│   │   ├── Generation/
+│   │   ├── Import/
+│   │   ├── Player/
+│   │   ├── Settings/
+│   │   ├── Transcript/
+│   │   ├── Turn/
+│   │   └── VisualNovel/
+│   ├── Domain/
+│   │   ├── Campaign/
+│   │   ├── Import/
+│   │   └── Providers/
+│   ├── Infrastructure/
+│   │   ├── Persistence/
+│   │   ├── Files/
+│   │   ├── Networking/
+│   │   └── Keychain/
+│   └── Services/
 ├── Shared/
-├── Features/
-│   ├── Player/
-│   ├── Import/
-│   ├── Settings/
-│   ├── Voice/
-│   └── Recovery/
-├── Domain/
-│   ├── Campaign/
-│   ├── Import/
-│   ├── Providers/
-│   ├── Tools/
-│   ├── Voice/
-│   └── Jobs/
-├── Infrastructure/
-│   ├── Persistence/
-│   ├── Files/
-│   ├── Networking/
-│   ├── Keychain/
-│   └── Audio/
-├── ActivityExtension/
+├── TurnActivityExtension/
 ├── RPGPlayerTests/
 ├── RPGPlayerUITests/
-├── Fixtures/
-└── Backend/
+├── docs/
+└── Backend/                 # Planned Phase 5; absent until created.
     ├── src/
     ├── test/
     ├── migrations/
@@ -127,16 +155,20 @@ RPGPlayer/
 
 ### Milestone A — Visual Contract
 
-- [ ] Execute Phase 1 through its completion gate.
-- [ ] Capture all nine canonical UI states at 430×932 points.
-- [ ] Compare captures beside `docs/visual-audit/evidence/`.
-- [ ] Resolve every blocker in `docs/visual-audit/native-craft-mobile-fidelity.md`.
-- [ ] Freeze `PlayerLayoutTokens` only after the comparison pass.
+- [x] Execute Phase 1 through its canonical Simulator completion gate.
+- [x] Capture all nine canonical UI states at the recording's 440×956-point (1320×2868-pixel) viewport.
+- [x] Compare captures beside the recording-derived visual authority.
+- [x] Resolve every Phase 1 visual blocker in `docs/visual-audit/native-craft-mobile-fidelity.md`.
+- [x] Freeze the accepted geometry in `PlayerLayoutMetrics` after the comparison pass.
+
+Physical-device, real-VoiceOver, broader device-matrix, and the known accessibility-size XCTest snapshot timeout remain later acceptance evidence and are tracked in `docs/qa/native-player-shell-checklist.md`.
 
 ### Milestone B — Local Playable Product
 
-- [ ] Execute Phase 2 and import a sanitized CDF fixture through the real document picker.
-- [ ] Kill and relaunch the app; confirm the projected campaign state is byte-for-byte equivalent.
+- [x] Execute Phase 2 and prove sanitized folder and archive CDF fixtures through the real staged import/commit pipeline.
+- [ ] Exercise the production Files document picker with a user-selected export during the local real-app pass; fixture-driven UI automation does not establish Files-app interaction.
+- [x] Kill and relaunch the app; confirm exact projection value equality and the same visible beat/state.
+- [x] Complete Phase 3 Tasks 1–3: provider-neutral contracts, private credential settings, and bounded streaming transport.
 - [ ] Execute Phase 3 with one real user-supplied provider key.
 - [ ] Complete player action → streaming GM → validated tool → roll → final turn.
 - [ ] Verify the same fixture still runs with a recorded provider transport and no network.
@@ -187,24 +219,24 @@ The release candidate must pass this uninterrupted scenario:
 Run after every phase:
 
 ~~~bash
-cd RPGPlayer
 xcodegen generate
-xcodebuild test -project RPGPlayer.xcodeproj -scheme RPGPlayer -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max,OS=latest'
+# Reuse one already-booted Simulator and keep it running.
+xcrun simctl list devices booted
+xcodebuild test -project RPGPlayer.xcodeproj -scheme RPGPlayer -destination 'platform=iOS Simulator,id=<BOOTED_UDID>' -parallel-testing-enabled NO
 ~~~
 
-Run when the backend exists:
+Run when the planned Phase 5 backend exists:
 
 ~~~bash
-cd RPGPlayer/Backend
+cd Backend
 npm ci
 npm run check
 npm test
 ~~~
 
-Run the release validation:
+Run the planned Phase 6 release validation after `Scripts/verify-release.sh` exists:
 
 ~~~bash
-cd RPGPlayer
 ./Scripts/verify-release.sh
 ~~~
 
@@ -229,4 +261,4 @@ cd RPGPlayer
 
 ## Implementation Handoff
 
-Start with `2026-08-09-native-player-shell.md`. Do not begin import, AI, voice, or backend work until the Phase 1 visual gate is accepted against the recording. Then execute phases in order; Phase 4 voice work may run in parallel with Phase 5 only after Phase 3 contracts are frozen.
+Continue from `docs/handoffs/2026-08-12-cloud-continuation.md`. Phase 1 and Phase 2 are complete; Phase 3 Task 4 is the immediate next task. Preserve task order and TDD. Cloud work may implement deterministic contracts, adapters, fixtures, and unit-tested domain logic, but it must not claim real-provider, physical-device, visual, audio, background, or TestFlight acceptance. Pull the branch back to the local Mac no later than Phase 3 Task 10 integration and the real BYOK/UI completion pass. Phase 4 voice work may run in parallel with Phase 5 only after Phase 3 contracts are frozen.

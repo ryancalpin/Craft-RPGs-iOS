@@ -125,7 +125,7 @@
 - Create: `RPGPlayer/docs/visual-regression-matrix.md`
 - Modify: only views/tokens with measured mismatches
 
-- [ ] Capture the nine canonical states at 430×932 points with deterministic fixture art/content.
+- [ ] Capture the nine canonical states at the recording's 440×956-point (1320×2868-pixel) viewport with deterministic fixture art/content.
 - [ ] Place each app capture beside the matching recording frame in a comparison image.
 - [ ] Check full-bleed crop, header vertical position, centered title, drawer widths, scene slivers, top gradients, material opacity, corner radii, text scale/weight, control placement, transcript density, and sheet height.
 - [ ] Verify left drawer is about 72% width and right drawer about 90%; neither becomes a desktop split view.

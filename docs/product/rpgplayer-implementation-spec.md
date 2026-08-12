@@ -1,12 +1,14 @@
 # RPGPlayer Native iOS Implementation Specification
 
-**Status:** Visual direction approved from the August 9, 2026 iPhone recording
+**Status (August 12, 2026):** Phase 1 and Phase 2 are complete. Phase 3 Tasks 1–3 are implemented on `main` through code commit `4b5140e`; Task 4 (OpenAI and OpenRouter adapters) is next. No real BYOK turn, physical-device pass, or TestFlight acceptance is claimed yet.
 
 **Working title:** RPGPlayer. This is an internal name; no Craft trademark, logo, or copied product artwork ships with the app.
 
 **Execution plans:** `docs/superpowers/plans/2026-08-09-rpgplayer-complete-implementation.md` and its six linked phase plans.
 
-**Visual contract:** `docs/visual-audit/native-craft-mobile-fidelity.md` with recording-derived evidence in `docs/visual-audit/evidence/`.
+**Continuation handoff:** `docs/handoffs/2026-08-12-cloud-continuation.md`
+
+**Visual contract:** `docs/visual-audit/native-craft-mobile-fidelity.md`; the private recording remains the authority, while the portable acceptance record is `docs/qa/native-player-shell-checklist.md`.
 
 ## 1. Product Goal
 
@@ -164,7 +166,7 @@ Each event carries a campaign ID, monotonically increasing sequence, request ID,
 
 ### 8.1 Providers
 
-The provider abstraction supports OpenAI, Anthropic, Gemini, and OpenRouter without exposing provider-specific types to the player UI.
+The provider-neutral contracts enumerate OpenAI, Anthropic, Gemini, and OpenRouter without exposing provider-specific types to the player UI. Concrete adapters are still pending Phase 3 Tasks 4–5.
 
 Each provider adapter must implement:
 
@@ -192,7 +194,7 @@ Every mutation is validated against the imported schema and converted into event
 
 ### 8.3 Turn Contract
 
-The GM response is a typed envelope containing narration blocks, dialogue blocks, visual-novel beats, proposed state events, pending player decisions, and voice segments. The client validates the complete envelope before committing it.
+The GM response contract is a typed, versioned, bounded envelope containing ordered story blocks, visual-novel beats, proposed state events, pending player decisions, and voice segments. The envelope type exists; complete validation and atomic event conversion remain Phase 3 Task 8.
 
 ## 9. Voice and ElevenLabs
 
@@ -281,11 +283,13 @@ If the user declines server processing, the app labels the mode `Device-only · 
 
 ## 15. Delivery Phases
 
-1. Native player shell with fixture data and recording-faithful transitions.
-2. Event store and CDF/handoff import.
-3. Direct device provider adapters and validated GM tools.
-4. ElevenLabs voice assignment, streaming, and playback.
-5. Durable turn service, APNs, Live Activity, and reconnection.
-6. TestFlight hardening, privacy disclosures, accessibility, performance, and failure recovery.
+| Phase | Scope | Current status |
+|---|---|---|
+| 1 | Native player shell with fixture data and recording-faithful transitions | Complete; canonical Simulator visual gate accepted at `4413e20` |
+| 2 | Event store and CDF/handoff import | Complete through real folder/archive acceptance at `ad16d16` |
+| 3 | Direct device provider adapters and validated GM tools | In progress; Tasks 1–3 complete through `4b5140e`, Task 4 next |
+| 4 | ElevenLabs voice assignment, streaming, and playback | Not started |
+| 5 | Durable turn service, APNs, Live Activity, and reconnection | Not started |
+| 6 | TestFlight hardening, privacy disclosures, accessibility, performance, and failure recovery | Not started |
 
 Each phase must remain runnable and demonstrable without relying on incomplete later phases.
