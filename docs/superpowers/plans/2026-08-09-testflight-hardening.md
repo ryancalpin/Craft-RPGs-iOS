@@ -8,6 +8,8 @@
 
 **Tech Stack:** Xcode 26, XCTest/XCUITest, Swift Testing where already adopted, MetricKit, OSLog with privacy annotations, Accessibility Inspector, Instruments, ActivityKit, App Store Connect/TestFlight
 
+**Implementation status (August 12, 2026): NOT STARTED.** Execute only after Phases 1–5 pass. Worker execution is governed by `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md`. Configuration, scripts, docs, tests, and the future backend use repository-root paths.
+
 ## Global Constraints
 
 - Execute after Phases 1–5.
@@ -21,12 +23,12 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Config/Debug.xcconfig`
-- Create: `RPGPlayer/Config/Release.xcconfig`
-- Create: `RPGPlayer/Config/TestFlight.xcconfig`
+- Create: `Config/Debug.xcconfig`
+- Create: `Config/Release.xcconfig`
+- Create: `Config/TestFlight.xcconfig`
 - Create: `RPGPlayer/App/AppEnvironment.swift`
-- Create: `RPGPlayer/Scripts/verify-release.sh`
-- Test: `RPGPlayer/RPGPlayerTests/AppEnvironmentTests.swift`
+- Create: `Scripts/verify-release.sh`
+- Test: `RPGPlayerTests/AppEnvironmentTests.swift`
 
 - [ ] Define typed environments for local, development, TestFlight, and production service URLs.
 - [ ] Fail release build if localhost, development Cloudflare hostname, test encryption key, fixture launch flag, or debug entitlement is present.
@@ -41,7 +43,7 @@
 
 - Create: `RPGPlayer/Infrastructure/Persistence/CampaignMigrationPlan.swift`
 - Create: `RPGPlayer/Features/Recovery/StoreRecoveryView.swift`
-- Test: `RPGPlayer/RPGPlayerTests/MigrationTests.swift`
+- Test: `RPGPlayerTests/MigrationTests.swift`
 - Fixtures: `RPGPlayer/Fixtures/Stores/v1/`
 
 - [ ] Open and migrate every committed store schema fixture to the current version.
@@ -56,8 +58,8 @@
 **Files:**
 
 - Modify: all primary feature views identified by the audit
-- Create: `RPGPlayer/RPGPlayerUITests/AccessibilityFlowTests.swift`
-- Create: `RPGPlayer/docs/accessibility-test-matrix.md`
+- Create: `RPGPlayerUITests/AccessibilityFlowTests.swift`
+- Create: `docs/accessibility-test-matrix.md`
 
 - [ ] Validate header, both drawers, VN title/dialogue, transcript, Your Move, roll, generation, voice, import, settings, and Live Activity.
 - [ ] Use accessibility labels/values for speaker, mood, beat count, Auto, drawer state, generation phase, roll expression/result, and selected choice.
@@ -72,8 +74,8 @@
 
 **Files:**
 
-- Create: `RPGPlayer/RPGPlayerTests/PerformanceTests.swift`
-- Create: `RPGPlayer/docs/performance-budgets.md`
+- Create: `RPGPlayerTests/PerformanceTests.swift`
+- Create: `docs/performance-budgets.md`
 - Modify: transcript, scene image, audio cache, and projection loader implementations as measured
 
 - [ ] Measure warm first meaningful player render against the 500 ms target.
@@ -89,8 +91,8 @@
 
 **Files:**
 
-- Create: `RPGPlayer/RPGPlayerUITests/NetworkChaosTests.swift`
-- Create: `RPGPlayer/docs/failure-recovery-matrix.md`
+- Create: `RPGPlayerUITests/NetworkChaosTests.swift`
+- Create: `docs/failure-recovery-matrix.md`
 
 - [ ] Exercise offline, high latency, packet loss, DNS failure, TLS failure, provider 429/5xx, APNs delay, WebSocket drop, and duplicate server events.
 - [ ] Verify drafts, job cursors, partial audio, and canonical event batches behave according to the recovery matrix.
@@ -104,10 +106,10 @@
 **Files:**
 
 - Create: `RPGPlayer/PrivacyInfo.xcprivacy`
-- Create: `RPGPlayer/docs/privacy-data-map.md`
-- Create: `RPGPlayer/docs/security-checklist.md`
-- Test: `RPGPlayer/RPGPlayerTests/SecretLeakageTests.swift`
-- Test: `RPGPlayer/Backend/test/privacy-boundary.test.ts`
+- Create: `docs/privacy-data-map.md`
+- Create: `docs/security-checklist.md`
+- Test: `RPGPlayerTests/SecretLeakageTests.swift`
+- Test: `Backend/test/privacy-boundary.test.ts`
 
 - [ ] Map every collected, local-only, transmitted, retained, and deleted data category.
 - [ ] Declare required-reason APIs and third-party SDK manifests.
@@ -121,8 +123,8 @@
 
 **Files:**
 
-- Create: `RPGPlayer/RPGPlayerUITests/CanonicalVisualStateTests.swift`
-- Create: `RPGPlayer/docs/visual-regression-matrix.md`
+- Create: `RPGPlayerUITests/CanonicalVisualStateTests.swift`
+- Create: `docs/visual-regression-matrix.md`
 - Modify: only views/tokens with measured mismatches
 
 - [ ] Capture the nine canonical states at the recording's 440×956-point (1320×2868-pixel) viewport with deterministic fixture art/content.
@@ -138,8 +140,8 @@
 
 **Files:**
 
-- Create: `RPGPlayer/docs/device-background-test-matrix.md`
-- Create: `RPGPlayer/RPGPlayerUITests/LiveActivityLaunchTests.swift`
+- Create: `docs/device-background-test-matrix.md`
+- Create: `RPGPlayerUITests/LiveActivityLaunchTests.swift`
 
 - [ ] Test Dynamic Island compact/minimal/expanded and Lock Screen states on a compatible iPhone.
 - [ ] Submit a durable job, background, lock, switch apps, apply memory pressure, terminate, reboot, and return.
@@ -153,9 +155,9 @@
 
 **Files:**
 
-- Create: `RPGPlayer/docs/testflight-release-notes.md`
-- Create: `RPGPlayer/docs/app-review-notes.md`
-- Create: `RPGPlayer/docs/support-and-privacy-copy.md`
+- Create: `docs/testflight-release-notes.md`
+- Create: `docs/app-review-notes.md`
+- Create: `docs/support-and-privacy-copy.md`
 
 - [ ] Explain that the app imports user-owned RPG project files and does not connect to Craft accounts.
 - [ ] Explain BYOK providers, optional ElevenLabs, optional durable processing, retention, and deletion.
@@ -169,8 +171,8 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Scripts/archive-testflight.sh`
-- Create: `RPGPlayer/docs/release-checklist.md`
+- Create: `Scripts/archive-testflight.sh`
+- Create: `docs/release-checklist.md`
 
 - [ ] Run all iOS and backend checks from clean dependency installs.
 - [ ] Run `verify-release.sh` before archive and fail on any forbidden artifact.

@@ -8,6 +8,8 @@
 
 **Tech Stack:** Swift 6, AVFoundation/AVSpeechSynthesizer, URLSession WebSocket and bytes APIs, CryptoKit, Keychain, XCTest, XCUITest
 
+**Implementation status (August 12, 2026): NOT STARTED.** Execute only after Phase 3 passes. Worker execution is governed by `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md`. Paths below are repository-relative; reuse the Phase 3 `VoiceSegment` contract rather than declaring a duplicate type.
+
 ## Global Constraints
 
 - Execute after Phase 3 contracts are stable.
@@ -23,11 +25,11 @@
 
 - Create: `RPGPlayer/Domain/Voice/VoiceDescriptor.swift`
 - Create: `RPGPlayer/Domain/Voice/VoiceAssignment.swift`
-- Create: `RPGPlayer/Domain/Voice/VoiceSegment.swift`
+- Modify: `RPGPlayer/Domain/Providers/TurnEnvelope.swift` (reuse the existing cross-phase `VoiceSegment`; do not declare a second type)
 - Create: `RPGPlayer/Domain/Voice/VoiceAudioStream.swift`
 - Create: `RPGPlayer/Domain/Voice/SpeechService.swift`
 - Create: `RPGPlayer/Domain/Voice/VoicePlaybackEvent.swift`
-- Test: `RPGPlayer/RPGPlayerTests/VoiceContractTests.swift`
+- Test: `RPGPlayerTests/VoiceContractTests.swift`
 
 - [ ] Model narrator, GM, character, and unassigned speaker targets.
 - [ ] Separate manual assignment, accepted suggestion, and transient suggestion sources.
@@ -43,8 +45,8 @@
 - Create: `RPGPlayer/Infrastructure/Networking/ElevenLabs/ElevenLabsClient.swift`
 - Create: `RPGPlayer/Infrastructure/Networking/ElevenLabs/ElevenLabsWireModels.swift`
 - Create: `RPGPlayer/Features/Voice/ElevenLabsSettingsView.swift`
-- Test: `RPGPlayer/RPGPlayerTests/ElevenLabsClientTests.swift`
-- Test: `RPGPlayer/RPGPlayerUITests/ElevenLabsSettingsTests.swift`
+- Test: `RPGPlayerTests/ElevenLabsClientTests.swift`
+- Test: `RPGPlayerUITests/ElevenLabsSettingsTests.swift`
 
 - [ ] Reuse the Keychain credential boundary from Phase 3 under a separate service identifier.
 - [ ] Validate the key with the smallest authenticated endpoint and map unauthorized/quota/connectivity errors.
@@ -61,8 +63,8 @@
 - Create: `RPGPlayer/Features/Voice/VoiceAssignmentView.swift`
 - Create: `RPGPlayer/Features/Voice/VoicePickerSheet.swift`
 - Create: `RPGPlayer/Domain/Voice/VoiceSuggestionEngine.swift`
-- Test: `RPGPlayer/RPGPlayerTests/VoiceSuggestionTests.swift`
-- Test: `RPGPlayer/RPGPlayerUITests/VoiceAssignmentTests.swift`
+- Test: `RPGPlayerTests/VoiceSuggestionTests.swift`
+- Test: `RPGPlayerUITests/VoiceAssignmentTests.swift`
 
 - [ ] List narrator, GM, player, and discovered NPCs with current assignment and preview control.
 - [ ] Suggest based only on user-visible character traits, declared age band, language, and desired tone; do not infer protected traits.
@@ -78,7 +80,7 @@
 - Create: `RPGPlayer/Infrastructure/Networking/ElevenLabs/ElevenLabsSpeechService.swift`
 - Create: `RPGPlayer/Infrastructure/Networking/ElevenLabs/ElevenLabsWebSocketSession.swift`
 - Create: `RPGPlayer/Infrastructure/Audio/AudioChunkDecoder.swift`
-- Test: `RPGPlayer/RPGPlayerTests/ElevenLabsSpeechServiceTests.swift`
+- Test: `RPGPlayerTests/ElevenLabsSpeechServiceTests.swift`
 - Fixtures: `RPGPlayer/Fixtures/Voice/ElevenLabs/`
 
 - [ ] Use input streaming for incremental GM text and HTTP streaming for complete short beats when measured latency is lower.
@@ -96,8 +98,8 @@
 - Create: `RPGPlayer/Infrastructure/Audio/VoiceAudioCache.swift`
 - Create: `RPGPlayer/Domain/Voice/PronunciationDictionary.swift`
 - Create: `RPGPlayer/Features/Voice/PronunciationEditorView.swift`
-- Test: `RPGPlayer/RPGPlayerTests/VoiceAudioCacheTests.swift`
-- Test: `RPGPlayer/RPGPlayerTests/PronunciationDictionaryTests.swift`
+- Test: `RPGPlayerTests/VoiceAudioCacheTests.swift`
+- Test: `RPGPlayerTests/PronunciationDictionaryTests.swift`
 
 - [ ] Hash normalized text, voice ID, model, output format, settings, and dictionary version for cache identity.
 - [ ] Store audio under a validated campaign/cache UUID path with size and last-access metadata.
@@ -113,7 +115,7 @@
 
 - Create: `RPGPlayer/Infrastructure/Audio/VoicePlaybackCoordinator.swift`
 - Create: `RPGPlayer/Infrastructure/Audio/AudioSessionCoordinator.swift`
-- Test: `RPGPlayer/RPGPlayerTests/VoicePlaybackCoordinatorTests.swift`
+- Test: `RPGPlayerTests/VoicePlaybackCoordinatorTests.swift`
 
 - [ ] Queue segments by story order and speaker; expose only actor-isolated state to SwiftUI.
 - [ ] Configure spoken-audio playback with user-controlled silent-mode behavior and external route support.
@@ -128,7 +130,7 @@
 
 - Create: `RPGPlayer/Infrastructure/Audio/AppleSpeechService.swift`
 - Create: `RPGPlayer/Domain/Voice/SpeechServiceRouter.swift`
-- Test: `RPGPlayer/RPGPlayerTests/SpeechServiceRouterTests.swift`
+- Test: `RPGPlayerTests/SpeechServiceRouterTests.swift`
 
 - [ ] Use Apple speech when no ElevenLabs key/assignment exists, the user selects offline voice, or ElevenLabs fails and fallback is enabled.
 - [ ] Preserve speaker ordering and playback event semantics across adapters.
@@ -140,11 +142,11 @@
 
 **Files:**
 
-- Modify: `RPGPlayer/Features/Player/VisualNovelView.swift`
-- Modify: `RPGPlayer/Features/Player/TranscriptView.swift`
+- Modify: `RPGPlayer/Features/VisualNovel/VisualNovelView.swift`
+- Modify: `RPGPlayer/Features/Transcript/TranscriptView.swift`
 - Modify: `RPGPlayer/Features/Player/PlayerSessionModel.swift`
 - Create: `RPGPlayer/Features/Voice/InlineNarrationControl.swift`
-- Test: `RPGPlayer/RPGPlayerUITests/VisualNovelAutoVoiceTests.swift`
+- Test: `RPGPlayerUITests/VisualNovelAutoVoiceTests.swift`
 
 - [ ] Keep the recorded control row: previous, beat count, speaker control, inline Auto toggle, close.
 - [ ] Start the current beat's assigned voice from the speaker control.
@@ -159,9 +161,9 @@
 
 **Files:**
 
-- Modify: `RPGPlayer/App/RPGPlayer.entitlements`
-- Create: `RPGPlayer/RPGPlayerTests/BackgroundAudioPolicyTests.swift`
-- Test: `RPGPlayer/RPGPlayerUITests/AudioInterruptionUITests.swift`
+- Modify: `Config/RPGPlayer.entitlements`
+- Create: `RPGPlayerTests/BackgroundAudioPolicyTests.swift`
+- Test: `RPGPlayerUITests/AudioInterruptionUITests.swift`
 
 - [ ] Enable the audio background mode only for user-initiated narration playback.
 - [ ] Do not use silent audio to keep generation alive.

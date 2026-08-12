@@ -13,6 +13,7 @@
 **Last reconciled:** August 12, 2026
 **Code baseline:** `main` through `4b5140e` (`feat: add bounded streaming HTTP transport`)
 **Continuation:** `docs/handoffs/2026-08-12-cloud-continuation.md`
+**Worker orchestration:** `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md`
 
 | Phase | Status | Evidence and next action |
 |---|---|---|
@@ -261,4 +262,4 @@ Run the planned Phase 6 release validation after `Scripts/verify-release.sh` exi
 
 ## Implementation Handoff
 
-Continue from `docs/handoffs/2026-08-12-cloud-continuation.md`. Phase 1 and Phase 2 are complete; Phase 3 Task 4 is the immediate next task. Preserve task order and TDD. Cloud work may implement deterministic contracts, adapters, fixtures, and unit-tested domain logic, but it must not claim real-provider, physical-device, visual, audio, background, or TestFlight acceptance. Pull the branch back to the local Mac no later than Phase 3 Task 10 integration and the real BYOK/UI completion pass. Phase 4 voice work may run in parallel with Phase 5 only after Phase 3 contracts are frozen.
+Continue from `docs/handoffs/2026-08-12-cloud-continuation.md` and execute workers through `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md`. Phase 1 and Phase 2 are complete; Phase 3 Task 4 is the immediate next task. Preserve task order and TDD. GPT Luna is mandatory for every spawned worker after its exact current selector is verified in a fresh session; do not substitute another model. Cloud work may implement deterministic contracts, adapters, fixtures, and unit-tested domain logic, but it must not claim real-provider, physical-device, visual, audio, background, or TestFlight acceptance. Pull the branch back to the local Mac no later than Phase 3 Task 10 integration and the real BYOK/UI completion pass. Phase 4 voice work may run in parallel with Phase 5 only after Phase 3 contracts are frozen.

@@ -10,6 +10,8 @@ RPGPlayer is a standalone native iOS player for user-exported AI-RPG projects. I
 
 The implementation has progressed beyond the fixture shell and import system. Phase 3 now has provider-neutral turn contracts, private Keychain-backed provider settings, and bounded SSE/JSONL transport. The next objective is to add real provider adapters without weakening the established security, streaming, determinism, or visual contracts.
 
+All remaining delegated work must follow `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md`: GPT Luna is mandatory for every worker role, while the root agent coordinates and gates the work. Because the model catalog changed during the local session, the fresh cloud session must resolve and smoke-test the exact GPT Luna selector before spawning any project worker; no fallback model is authorized.
+
 ## Goal and acceptance criteria
 
 - Complete the remaining Phase 3 tasks in dependency order, beginning with Task 4 (OpenAI and OpenRouter adapters).
@@ -88,6 +90,7 @@ The last application-code commit is `4b5140ee486b2df9c10783947c3ca37e556d72c7`; 
 ## Relevant files and artifacts
 
 - `docs/superpowers/plans/2026-08-09-rpgplayer-complete-implementation.md` — master status, dependencies, gates, and phase order.
+- `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md` — mandatory worker topology, selector preflight, task/review loop, concurrency, branching, and cloud/local gates for the rest of the project.
 - `docs/superpowers/plans/2026-08-09-ai-gm-providers-tools.md` — active Phase 3 TDD plan; start at Task 4.
 - `docs/product/rpgplayer-implementation-spec.md` — product and architecture contract.
 - `docs/visual-audit/native-craft-mobile-fidelity.md` — recording-derived hierarchy and geometry authority.

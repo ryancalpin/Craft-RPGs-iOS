@@ -8,6 +8,8 @@
 
 **Tech Stack:** Swift 6, ActivityKit, WidgetKit, BackgroundTasks, DeviceCheck/App Attest, CryptoKit/Security, URLSession; Cloudflare Workers, Durable Objects SQLite, Workflows, R2, TypeScript, Zod, Web Crypto, Vitest
 
+**Implementation status (August 12, 2026): NOT STARTED.** Execute only after Phase 3 passes; server voice additionally depends on Phase 4. Worker execution is governed by `docs/superpowers/plans/2026-08-12-gpt-luna-project-orchestration.md`. `Backend/`, `Shared/`, tests, configuration, and the activity extension are repository-root paths.
+
 ## Global Constraints
 
 - Execute after Phase 3; integrate server voice only after Phase 4.
@@ -25,11 +27,11 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Shared/Jobs/job-protocol.schema.json`
+- Create: `Shared/Jobs/job-protocol.schema.json`
 - Create: `RPGPlayer/Domain/Jobs/JobProtocol.swift`
-- Create: `RPGPlayer/Backend/src/protocol.ts`
-- Create: `RPGPlayer/Backend/test/protocol.test.ts`
-- Test: `RPGPlayer/RPGPlayerTests/JobProtocolTests.swift`
+- Create: `Backend/src/protocol.ts`
+- Create: `Backend/test/protocol.test.ts`
+- Test: `RPGPlayerTests/JobProtocolTests.swift`
 - Fixtures: `RPGPlayer/Fixtures/Jobs/v1/`
 
 - [ ] Define schemas for installation challenge/registration, job submission, wrapped credential envelope, job receipt, ordered job event, event page, cancellation, acknowledgement, and final encrypted result.
@@ -44,13 +46,13 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Backend/package.json`
-- Create: `RPGPlayer/Backend/tsconfig.json`
-- Create: `RPGPlayer/Backend/wrangler.jsonc`
-- Create: `RPGPlayer/Backend/src/index.ts`
-- Create: `RPGPlayer/Backend/vitest.config.ts`
-- Create: `RPGPlayer/Backend/test/env.d.ts`
-- Create: `RPGPlayer/Backend/.gitignore`
+- Create: `Backend/package.json`
+- Create: `Backend/tsconfig.json`
+- Create: `Backend/wrangler.jsonc`
+- Create: `Backend/src/index.ts`
+- Create: `Backend/vitest.config.ts`
+- Create: `Backend/test/env.d.ts`
+- Create: `Backend/.gitignore`
 
 - [ ] Pin package versions through `package-lock.json` and use Node 22 in `.nvmrc`.
 - [ ] Set `compatibility_date` to the implementation date, enable `nodejs_compat`, observability, one `TURN_JOB` Durable Object binding, one `TURN_WORKFLOW` Workflow binding, and `JOB_ARTIFACTS` R2 binding.
@@ -64,12 +66,12 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Backend/src/auth/installation.ts`
-- Create: `RPGPlayer/Backend/src/auth/app-attest.ts`
+- Create: `Backend/src/auth/installation.ts`
+- Create: `Backend/src/auth/app-attest.ts`
 - Create: `RPGPlayer/Infrastructure/Networking/InstallationRegistrar.swift`
 - Create: `RPGPlayer/Infrastructure/Keychain/InstallationCredentialStore.swift`
-- Test: `RPGPlayer/Backend/test/installation.test.ts`
-- Test: `RPGPlayer/RPGPlayerTests/InstallationRegistrarTests.swift`
+- Test: `Backend/test/installation.test.ts`
+- Test: `RPGPlayerTests/InstallationRegistrarTests.swift`
 
 - [ ] Issue a one-time 32-byte challenge with a five-minute expiry.
 - [ ] Generate and attest an App Attest key on supported devices; use a clearly marked development-device fallback only in debug/TestFlight environments that cannot attest.
@@ -86,9 +88,9 @@
 
 - Create: `RPGPlayer/Domain/Jobs/JobEnvelopeEncryptor.swift`
 - Create: `RPGPlayer/Features/Settings/DurableModeConsentView.swift`
-- Create: `RPGPlayer/Backend/src/crypto/job-envelope.ts`
-- Test: `RPGPlayer/RPGPlayerTests/JobEnvelopeEncryptorTests.swift`
-- Test: `RPGPlayer/Backend/test/job-envelope.test.ts`
+- Create: `Backend/src/crypto/job-envelope.ts`
+- Test: `RPGPlayerTests/JobEnvelopeEncryptorTests.swift`
+- Test: `Backend/test/job-envelope.test.ts`
 
 - [ ] Display exactly what leaves the phone: bounded turn context, selected provider key, optional ElevenLabs key, model/voice settings, and requested assets.
 - [ ] Offer `Enable durable turns` and `Keep device-only`; persist the choice without preselecting consent.
@@ -103,9 +105,9 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Backend/src/jobs/turn-job.ts`
-- Create: `RPGPlayer/Backend/src/jobs/job-store.ts`
-- Test: `RPGPlayer/Backend/test/turn-job.test.ts`
+- Create: `Backend/src/jobs/turn-job.ts`
+- Create: `Backend/src/jobs/job-store.ts`
+- Test: `Backend/test/turn-job.test.ts`
 
 - [ ] Route with `env.TURN_JOB.getByName(jobID)`.
 - [ ] Initialize SQLite schema in constructor `blockConcurrencyWhile` only: metadata, events, client acknowledgements, activity tokens, and schema migrations.
@@ -121,11 +123,11 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Backend/src/routes/jobs.ts`
-- Create: `RPGPlayer/Backend/src/http/validation.ts`
+- Create: `Backend/src/routes/jobs.ts`
+- Create: `Backend/src/http/validation.ts`
 - Create: `RPGPlayer/Infrastructure/Networking/DurableTurnClient.swift`
-- Test: `RPGPlayer/Backend/test/jobs-route.test.ts`
-- Test: `RPGPlayer/RPGPlayerTests/DurableTurnClientTests.swift`
+- Test: `Backend/test/jobs-route.test.ts`
+- Test: `RPGPlayerTests/DurableTurnClientTests.swift`
 
 - [ ] Provide `POST /v1/jobs`, `GET /v1/jobs/{id}/events?after=`, `GET /v1/jobs/{id}/stream`, `POST /v1/jobs/{id}/cancel`, and `POST /v1/jobs/{id}/ack`.
 - [ ] Authenticate every route with the installation token plus an App Attest assertion for mutating requests.
@@ -140,11 +142,11 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Backend/src/workflows/turn-workflow.ts`
-- Create: `RPGPlayer/Backend/src/providers/`
-- Create: `RPGPlayer/Backend/src/tools/`
-- Create: `RPGPlayer/Backend/src/validation/turn-envelope.ts`
-- Test: `RPGPlayer/Backend/test/turn-workflow.test.ts`
+- Create: `Backend/src/workflows/turn-workflow.ts`
+- Create: `Backend/src/providers/`
+- Create: `Backend/src/tools/`
+- Create: `Backend/src/validation/turn-envelope.ts`
+- Test: `Backend/test/turn-workflow.test.ts`
 
 - [ ] Use durable steps for decrypt/read, provider generation, validated tools, final validation, optional voice generation, encrypted result write, ready notification, and cleanup scheduling.
 - [ ] Before and after every external call, read cancellation/terminal state from the job object.
@@ -160,12 +162,12 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Shared/Jobs/TurnActivityAttributes.swift`
-- Modify: `RPGPlayer/ActivityExtension/TurnActivityWidget.swift`
-- Create: `RPGPlayer/Backend/src/apns/activity-push.ts`
+- Modify: `Shared/TurnActivityAttributes.swift`
+- Modify: `TurnActivityExtension/TurnActivityWidget.swift`
+- Create: `Backend/src/apns/activity-push.ts`
 - Create: `RPGPlayer/Domain/Jobs/LiveActivityCoordinator.swift`
-- Test: `RPGPlayer/Backend/test/activity-push.test.ts`
-- Test: `RPGPlayer/RPGPlayerTests/LiveActivityCoordinatorTests.swift`
+- Test: `Backend/test/activity-push.test.ts`
+- Test: `RPGPlayerTests/LiveActivityCoordinatorTests.swift`
 
 - [ ] Start the Live Activity after job acceptance and upload its push token to the owning job.
 - [ ] Render compact campaign glyph plus phase indicator; expanded view shows campaign title, status, elapsed time, and Stop only while cancellable.
@@ -183,8 +185,8 @@
 - Create: `RPGPlayer/Domain/Jobs/JobReconciler.swift`
 - Create: `RPGPlayer/Infrastructure/Persistence/PendingJobRecord.swift`
 - Modify: `RPGPlayer/Features/Player/PlayerSessionModel.swift`
-- Test: `RPGPlayer/RPGPlayerTests/JobReconcilerTests.swift`
-- Test: `RPGPlayer/RPGPlayerUITests/DurableRelaunchTests.swift`
+- Test: `RPGPlayerTests/JobReconcilerTests.swift`
+- Test: `RPGPlayerUITests/DurableRelaunchTests.swift`
 
 - [ ] Persist job ID, request ID, campaign ID, expected local sequence, last job sequence, and encryption material reference before leaving the foreground.
 - [ ] Resume via WebSocket when active and event-page polling after reconnect/relaunch.
@@ -201,8 +203,8 @@
 
 - Create: `RPGPlayer/Domain/Jobs/BackgroundContinuationCoordinator.swift`
 - Modify: `RPGPlayer/App/RPGPlayerApp.swift`
-- Modify: `RPGPlayer/App/Info.plist`
-- Test: `RPGPlayer/RPGPlayerTests/BackgroundContinuationTests.swift`
+- Modify: `Config/App-Info.plist`
+- Test: `RPGPlayerTests/BackgroundContinuationTests.swift`
 
 - [ ] On iOS 26, register and submit `BGContinuedProcessingTask` only for user-started active turns.
 - [ ] On earlier iOS, use short background task time only to finish submission/persist handoff.
@@ -216,10 +218,10 @@
 
 **Files:**
 
-- Create: `RPGPlayer/Backend/src/jobs/cleanup.ts`
-- Create: `RPGPlayer/Backend/src/observability/log.ts`
-- Test: `RPGPlayer/Backend/test/retention.test.ts`
-- Test: `RPGPlayer/Backend/test/redaction.test.ts`
+- Create: `Backend/src/jobs/cleanup.ts`
+- Create: `Backend/src/observability/log.ts`
+- Test: `Backend/test/retention.test.ts`
+- Test: `Backend/test/redaction.test.ts`
 
 - [ ] Default successful artifacts to deletion after acknowledgement; expire all unrecovered artifacts at 24 hours.
 - [ ] Cap concurrent jobs per installation at two and reject duplicate active request IDs.
