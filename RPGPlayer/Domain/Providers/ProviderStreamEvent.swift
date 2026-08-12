@@ -31,32 +31,84 @@ public enum ProviderStreamContract {
         _ source: AsyncThrowingStream<ProviderStreamEvent, Error>,
         onCancel: @escaping @Sendable () async -> Void
     ) -> AsyncThrowingStream<ProviderStreamEvent, Error> {
-        AsyncThrowingStream { continuation in
-            let relayTask = Task {
-                do {
-                    for try await event in source {
-                        continuation.yield(event)
-                        if case .finished = event {
-                            continuation.finish()
-                            return
-                        }
-                    }
-                    continuation.finish(
-                        throwing: ProviderError.malformedResponse
-                    )
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-
-            continuation.onTermination = { termination in
-                guard case .cancelled = termination else { return }
-                relayTask.cancel()
+        let state = ProviderStreamContractState(
+            source: source,
+            onCancel: onCancel
+        )
+        return AsyncThrowingStream(unfolding: {
+            try await withTaskCancellationHandler {
+                try Task.checkCancellation()
+                let event = try await state.next()
+                try Task.checkCancellation()
+                return event
+            } onCancel: {
                 Task {
-                    await onCancel()
+                    await state.cancel()
                 }
             }
+        })
+    }
+}
+
+private actor ProviderStreamContractState {
+    private var source: ProviderStreamSource?
+    private var reachedTerminal = false
+    private var didCancel = false
+    private let onCancel: @Sendable () async -> Void
+
+    init(
+        source: AsyncThrowingStream<ProviderStreamEvent, Error>,
+        onCancel: @escaping @Sendable () async -> Void
+    ) {
+        self.source = ProviderStreamSource(source.makeAsyncIterator())
+        self.onCancel = onCancel
+    }
+
+    func next() async throws -> ProviderStreamEvent? {
+        try Task.checkCancellation()
+        guard reachedTerminal == false,
+              didCancel == false,
+              let source else { return nil }
+
+        let event = try await source.next()
+        try Task.checkCancellation()
+
+        guard let event else {
+            self.source = nil
+            throw ProviderError.malformedResponse
         }
+        if case .finished = event {
+            reachedTerminal = true
+            self.source = nil
+        }
+        return event
+    }
+
+    func cancel() async {
+        guard didCancel == false else { return }
+        didCancel = true
+        source = nil
+        await onCancel()
+    }
+}
+
+private final class ProviderStreamSource: @unchecked Sendable {
+    private var iterator: AsyncThrowingStream<
+        ProviderStreamEvent,
+        Error
+    >.Iterator
+
+    init(
+        _ iterator: AsyncThrowingStream<ProviderStreamEvent, Error>.Iterator
+    ) {
+        self.iterator = iterator
+    }
+
+    func next() async throws -> ProviderStreamEvent? {
+        var iterator = iterator
+        let event = try await iterator.next()
+        self.iterator = iterator
+        return event
     }
 }
 

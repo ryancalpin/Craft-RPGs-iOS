@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import RPGPlayer
 
@@ -475,6 +476,31 @@ struct ProviderContractTests {
         }
     }
 
+    @Test @MainActor
+    func streamContractPullsOnlyWhenTheConsumerRequestsAnotherEvent()
+        async throws {
+        let source = DemandCheckedProviderSource()
+        let stream = ProviderStreamContract.enforcing(
+            AsyncThrowingStream(unfolding: {
+                try await source.next()
+            }),
+            onCancel: {}
+        )
+        var iterator = stream.makeAsyncIterator()
+
+        #expect(try await iterator.next() == .textDelta("first"))
+        let countBeforeSecondDemand = source.pullCount
+        #expect(
+            countBeforeSecondDemand == 1,
+            "ProviderStreamContract prefetched \(countBeforeSecondDemand) events"
+        )
+        #expect(
+            try await iterator.next()
+                == .finished(.maximumOutputTokens)
+        )
+        #expect(try await iterator.next() == nil)
+    }
+
     @Test
     func downstreamCancellationInvokesAsyncCancellationExactlyOnce() async {
         let sourcePair = AsyncThrowingStream<ProviderStreamEvent, Error>
@@ -517,6 +543,8 @@ struct ProviderContractTests {
         case .success(let event):
             // AsyncThrowingStream reports downstream Task cancellation as EOF.
             #expect(event == nil)
+        case .failure(is CancellationError):
+            break
         case .failure(let error as ProviderError):
             #expect(error == .cancelled)
         case .failure(let error):
@@ -829,6 +857,28 @@ actor AsyncProbe {
         guard count == 0 else { return }
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
+        }
+    }
+}
+
+private final class DemandCheckedProviderSource: @unchecked Sendable {
+    private let state = Mutex(0)
+
+    var pullCount: Int {
+        state.withLock { $0 }
+    }
+
+    func next() async throws -> ProviderStreamEvent? {
+        state.withLock { count in
+            count += 1
+            switch count {
+            case 1:
+                return .textDelta("first")
+            case 2:
+                return .finished(.maximumOutputTokens)
+            default:
+                return nil
+            }
         }
     }
 }
