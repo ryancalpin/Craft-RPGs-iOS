@@ -1,0 +1,23 @@
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"type":"function_call","item_id":"item-search","call_id":"call-search","name":"searchRecords"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"type":"function_call","item_id":"item-roll","call_id":"call-roll","name":"requestRoll"}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"item-search","delta":"{\"query\":"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"item-roll","delta":"{\"expression\":\"1d20+4\"}"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"item-search","delta":"\"bell rope\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","item_id":"item-roll","arguments":"{\"expression\":\"1d20+4\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","item_id":"item-search","arguments":"{\"query\":\"bell rope\"}"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"status":"completed"}}

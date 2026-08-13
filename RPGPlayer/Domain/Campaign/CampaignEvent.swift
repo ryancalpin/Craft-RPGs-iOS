@@ -35,10 +35,13 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
         case gmStatusChanged
         case gmMessageCommitted
         case recordPatched
+        case clockUpdated
+        case assetAttached
         case rollRequested
         case rollResolved
         case sceneChanged
         case voiceAssignmentChanged
+        case voiceSuggestionProposed
         case turnCancelled
         case turnFailed
     }
@@ -48,10 +51,13 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
     case gmStatusChanged(GMStatusChangedPayload)
     case gmMessageCommitted(GMMessageCommittedPayload)
     case recordPatched(RecordPatchedPayload)
+    case clockUpdated(ClockUpdatedPayload)
+    case assetAttached(AssetAttachedPayload)
     case rollRequested(RollRequestedPayload)
     case rollResolved(RollResolvedPayload)
     case sceneChanged(SceneChangedPayload)
     case voiceAssignmentChanged(VoiceAssignmentChangedPayload)
+    case voiceSuggestionProposed(VoiceSuggestionProposedPayload)
     case turnCancelled(TurnCancelledPayload)
     case turnFailed(TurnFailedPayload)
 
@@ -62,10 +68,13 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
         case .gmStatusChanged: .gmStatusChanged
         case .gmMessageCommitted: .gmMessageCommitted
         case .recordPatched: .recordPatched
+        case .clockUpdated: .clockUpdated
+        case .assetAttached: .assetAttached
         case .rollRequested: .rollRequested
         case .rollResolved: .rollResolved
         case .sceneChanged: .sceneChanged
         case .voiceAssignmentChanged: .voiceAssignmentChanged
+        case .voiceSuggestionProposed: .voiceSuggestionProposed
         case .turnCancelled: .turnCancelled
         case .turnFailed: .turnFailed
         }
@@ -101,6 +110,14 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
             .recordPatched(
                 try container.decode(RecordPatchedPayload.self, forKey: .data)
             )
+        case .clockUpdated:
+            .clockUpdated(
+                try container.decode(ClockUpdatedPayload.self, forKey: .data)
+            )
+        case .assetAttached:
+            .assetAttached(
+                try container.decode(AssetAttachedPayload.self, forKey: .data)
+            )
         case .rollRequested:
             .rollRequested(
                 try container.decode(RollRequestedPayload.self, forKey: .data)
@@ -116,6 +133,10 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
         case .voiceAssignmentChanged:
             .voiceAssignmentChanged(
                 try container.decode(VoiceAssignmentChangedPayload.self, forKey: .data)
+            )
+        case .voiceSuggestionProposed:
+            .voiceSuggestionProposed(
+                try container.decode(VoiceSuggestionProposedPayload.self, forKey: .data)
             )
         case .turnCancelled:
             .turnCancelled(
@@ -143,6 +164,10 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
             try container.encode(payload, forKey: .data)
         case .recordPatched(let payload):
             try container.encode(payload, forKey: .data)
+        case .clockUpdated(let payload):
+            try container.encode(payload, forKey: .data)
+        case .assetAttached(let payload):
+            try container.encode(payload, forKey: .data)
         case .rollRequested(let payload):
             try container.encode(payload, forKey: .data)
         case .rollResolved(let payload):
@@ -150,6 +175,8 @@ public enum CampaignEventPayload: Codable, Sendable, Equatable {
         case .sceneChanged(let payload):
             try container.encode(payload, forKey: .data)
         case .voiceAssignmentChanged(let payload):
+            try container.encode(payload, forKey: .data)
+        case .voiceSuggestionProposed(let payload):
             try container.encode(payload, forKey: .data)
         case .turnCancelled(let payload):
             try container.encode(payload, forKey: .data)
@@ -263,7 +290,7 @@ public struct CampaignDialogueBlock: Codable, Identifiable, Equatable, Sendable 
 }
 
 public struct CampaignStoryBeat: Codable, Identifiable, Equatable, Sendable {
-    public enum Kind: String, Codable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
         case title
         case narration
         case dialogue
@@ -300,6 +327,9 @@ public struct GMMessageCommittedPayload: Codable, Equatable, Sendable {
     public let messageID: UUID
     public let narration: [String]
     public let dialogue: [CampaignDialogueBlock]
+    /// The canonical order of narration and dialogue. Older payloads omit this
+    /// field and continue to use the legacy arrays above.
+    public let orderedTranscript: [CampaignTranscriptBlock]?
     public let beats: [CampaignStoryBeat]
     public let finalQuestion: String
 
@@ -307,14 +337,43 @@ public struct GMMessageCommittedPayload: Codable, Equatable, Sendable {
         messageID: UUID,
         narration: [String],
         dialogue: [CampaignDialogueBlock],
+        orderedTranscript: [CampaignTranscriptBlock]? = nil,
         beats: [CampaignStoryBeat],
         finalQuestion: String
     ) {
         self.messageID = messageID
         self.narration = narration
         self.dialogue = dialogue
+        self.orderedTranscript = orderedTranscript
         self.beats = beats
         self.finalQuestion = finalQuestion
+    }
+}
+
+public struct CampaignTranscriptBlock: Codable, Identifiable, Equatable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
+        case narration
+        case dialogue
+    }
+
+    public let id: UUID
+    public let kind: Kind
+    public let speaker: String?
+    public let mood: String?
+    public let text: String
+
+    public init(
+        id: UUID,
+        kind: Kind,
+        speaker: String? = nil,
+        mood: String? = nil,
+        text: String
+    ) {
+        self.id = id
+        self.kind = kind
+        self.speaker = speaker
+        self.mood = mood
+        self.text = text
     }
 }
 
@@ -325,6 +384,30 @@ public struct RecordPatchedPayload: Codable, Equatable, Sendable {
     public init(recordID: String, changes: [String: JSONValue]) {
         self.recordID = recordID
         self.changes = changes
+    }
+}
+
+public struct ClockUpdatedPayload: Codable, Equatable, Sendable {
+    public let clockRecordID: String
+    public let current: Int
+    public let maximum: Int
+
+    public init(clockRecordID: String, current: Int, maximum: Int) {
+        self.clockRecordID = clockRecordID
+        self.current = current
+        self.maximum = maximum
+    }
+}
+
+public struct AssetAttachedPayload: Codable, Equatable, Sendable {
+    public let assetID: String
+    public let targetRecordID: String
+    public let fieldID: String
+
+    public init(assetID: String, targetRecordID: String, fieldID: String) {
+        self.assetID = assetID
+        self.targetRecordID = targetRecordID
+        self.fieldID = fieldID
     }
 }
 
@@ -384,6 +467,16 @@ public struct VoiceAssignmentChangedPayload: Codable, Equatable, Sendable {
         self.characterID = characterID
         self.voiceID = voiceID
         self.source = source
+    }
+}
+
+public struct VoiceSuggestionProposedPayload: Codable, Equatable, Sendable {
+    public let characterID: String
+    public let styleDescription: String
+
+    public init(characterID: String, styleDescription: String) {
+        self.characterID = characterID
+        self.styleDescription = styleDescription
     }
 }
 

@@ -17,6 +17,7 @@ struct PlayerShellView: View {
     @State private var generationSteps: [String] = []
     @State private var generationTask: Task<Void, Never>?
     @State private var yourMoveFocusRequest = false
+    @State private var lastPresentedRollRequest: RollRequestedPayload?
     private let sessionModel: PlayerSessionModel?
     private let turnStreaming: (any TurnStreaming)?
     private let exposesTurnContextForTesting: Bool
@@ -57,6 +58,13 @@ struct PlayerShellView: View {
                 "Drafted the next story beat.",
                 "Prepared dialogue and narration."
             ]
+        case "dice-interruption":
+            initialState.activeRequestID = "00000000-0000-4000-8000-000000000902"
+            initialState.pendingRoll = RollRequestedPayload(
+                rollID: UUID(uuidString: "00000000-0000-4000-8000-000000000901")!,
+                expression: "1d20+4",
+                prompt: "Can you cross the rain-slick bridge unseen?"
+            )
         default:
             break
         }
@@ -266,6 +274,14 @@ struct PlayerShellView: View {
                         from: safeAreaBottom
                     )
                 )
+                if let pendingRoll = state.pendingRoll {
+                    lastPresentedRollRequest = pendingRoll
+                }
+            }
+            .onChange(of: state.pendingRoll) { _, pendingRoll in
+                if let pendingRoll {
+                    lastPresentedRollRequest = pendingRoll
+                }
             }
             .onChange(of: proxy.safeAreaInsets.bottom) { _, newValue in
                 stableContainerSafeAreaBottom = max(
@@ -343,6 +359,18 @@ struct PlayerShellView: View {
         safeAreaTop: CGFloat,
         safeAreaBottom: CGFloat
     ) -> some View {
+        let rollRequest: RollRequestedPayload? = if let pendingRoll = state.pendingRoll {
+            pendingRoll
+        } else if let lastPresentedRollRequest,
+                  state.resolvedRolls[lastPresentedRollRequest.rollID] != nil {
+            lastPresentedRollRequest
+        } else {
+            nil
+        }
+        let resolvedRoll = rollRequest.flatMap { request in
+            state.resolvedRolls[request.rollID]
+        }
+
         if let generation = state.generation {
             GenerationView(
                 phase: generation,
@@ -366,7 +394,15 @@ struct PlayerShellView: View {
                         obscuredBottom: safeAreaBottom
                     ),
                     dockFocusRequest: $yourMoveFocusRequest,
-                    openMove: { send(.presentTurnSheet) }
+                    openMove: { send(.presentTurnSheet) },
+                    pendingRoll: rollRequest,
+                    resolvedRoll: resolvedRoll,
+                    resolveRoll: { request in
+                        try await resolveRoll(request)
+                    },
+                    dismissRoll: {
+                        lastPresentedRollRequest = nil
+                    }
                 )
             case .visualNovel:
                 VisualNovelView(
@@ -523,6 +559,27 @@ struct PlayerShellView: View {
         generationTask = nil
         pendingSubmission = nil
         send(.generationFailed)
+    }
+
+    private func resolveRoll(
+        _ request: RollRequestedPayload
+    ) async throws -> RollResolvedPayload {
+        if let sessionModel {
+            return try await sessionModel.resolveRoll(rollID: request.rollID)
+        }
+
+        guard state.pendingRoll?.rollID == request.rollID else {
+            throw PlayerSessionModelError.rollNotPending
+        }
+        let expression = try DiceExpression(request.expression)
+        let result = RollResolvedPayload(
+            rollID: request.rollID,
+            results: [12],
+            modifier: expression.modifier,
+            total: 12 + expression.modifier
+        )
+        send(.rollResolved(result))
+        return result
     }
 
     private func drawerTransition(edge: Edge) -> AnyTransition {

@@ -1,0 +1,1 @@
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{"content":"partial answer"},"finish_reason":null}]}

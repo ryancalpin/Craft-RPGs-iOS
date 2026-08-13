@@ -11,6 +11,74 @@ struct DomainContractTests {
         #expect(event.payload.kind.rawValue == fixture.rawValue)
     }
 
+    @Test
+    func voiceSuggestionProposalRoundTripsWithoutBecomingAVoiceAssignment() throws {
+        let event = CampaignEvent(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000000901")!,
+            campaignID: UUID(uuidString: "00000000-0000-4000-8000-000000000902")!,
+            sequence: 1,
+            requestID: UUID(uuidString: "00000000-0000-4000-8000-000000000903")!,
+            timestamp: Date(timeIntervalSince1970: 1),
+            schemaVersion: 1,
+            payload: .voiceSuggestionProposed(
+                VoiceSuggestionProposedPayload(
+                    characterID: "character-guide",
+                    styleDescription: "Warm and cautious"
+                )
+            )
+        )
+
+        let roundTripped = try JSONDecoder().decode(
+            CampaignEvent.self,
+            from: JSONEncoder().encode(event)
+        )
+        #expect(roundTripped == event)
+        if case .voiceAssignmentChanged = roundTripped.payload {
+            Issue.record("A style description must not be persisted as a voice ID")
+        }
+    }
+
+    @Test
+    func taskEightMutationEventsRoundTripWithStrictPayloadKinds() throws {
+        let eventID = UUID(uuidString: "00000000-0000-4000-8000-000000000911")!
+        let campaignID = UUID(uuidString: "00000000-0000-4000-8000-000000000912")!
+        let requestID = UUID(uuidString: "00000000-0000-4000-8000-000000000913")!
+        let payloads: [CampaignEventPayload] = [
+            .clockUpdated(
+                ClockUpdatedPayload(
+                    clockRecordID: "clock-journey",
+                    current: 2,
+                    maximum: 6
+                )
+            ),
+            .assetAttached(
+                AssetAttachedPayload(
+                    assetID: "asset-map",
+                    targetRecordID: "scene-quay",
+                    fieldID: "mapAsset"
+                )
+            )
+        ]
+
+        for (index, payload) in payloads.enumerated() {
+            let event = CampaignEvent(
+                id: eventID,
+                campaignID: campaignID,
+                sequence: Int64(index + 1),
+                requestID: requestID,
+                timestamp: Date(timeIntervalSince1970: 1),
+                schemaVersion: 1,
+                payload: payload
+            )
+            let roundTripped = try JSONDecoder().decode(
+                CampaignEvent.self,
+                from: JSONEncoder().encode(event)
+            )
+            #expect(roundTripped == event)
+            #expect(roundTripped.payload.kind == payload.kind)
+        }
+    }
+
     @Test(arguments: EventFixture.allCases)
     func schemaVersionOneFixtureRoundTripsWithoutDataLoss(
         _ fixture: EventFixture

@@ -2,7 +2,7 @@
 
 ## Task
 
-Continue the RPGPlayer implementation from the current `origin/main`; the last application-code baseline before this documentation handoff is `4b5140e`. Execute `docs/superpowers/plans/2026-08-09-ai-gm-providers-tools.md` task by task with TDD. Start with Phase 3 Task 4, implement and verify cloud-safe work through reviewable commits, and stop for a local pull-back before real-provider and real-app acceptance testing.
+Hand back the completed cloud continuation from the Phase 3 Task 3 application-code baseline `4b5140e`. Phase 3 Tasks 4–9 are implemented and review-complete on `codex/phase3-cloud-continuation` through `c55a81d584734e570c4bf02dcb2af4c26fdacef5`. Stop here for a local pull-back before Phase 3 Task 10 integration and all real-provider or real-app acceptance testing.
 
 ## Concept and context
 
@@ -18,16 +18,15 @@ All remaining delegated work must follow `docs/superpowers/plans/2026-08-12-gpt-
 - Keep deterministic source, fixtures, adapter contract tests, and domain work cloud-executable and committed in small green increments.
 - Preserve the recording-faithful Phase 1 UI and the event-sourced Phase 2 campaign model.
 - Pull the cloud branch back to the local Mac before real credentials or user-visible runtime acceptance are required. Task 10 source work may proceed in cloud only if it can preserve the existing presentation behind dependency injection, but its final integration and visual acceptance must be local.
-- [ ] Task 4 passes sanitized recorded transport contract tests for OpenAI and OpenRouter.
-- [ ] Task 5 gives Anthropic and Gemini the same normalized contract coverage.
-- [ ] Tasks 6–9 complete bounded context, native tool validation, atomic turn execution, and dice interruption.
-- [ ] The cloud branch is pushed with a clean, reviewable commit for every completed task.
+- [x] Tasks 4–9 are cloud-complete in reviewable commit ranges; final whole-phase review status is READY at `c55a81d`.
+- [x] The cloud branch contains the completed Task 4–9 implementation and review-fix history.
+- [ ] Task 10 integration and local unit/build/UI/visual acceptance.
 - [ ] Local work resumes no later than Phase 3 Task 10 integration, then runs real BYOK, Xcode/Simulator UI, canonical visual, and available physical-device checks.
 - [ ] Phase 3 is not marked complete until a real user-owned provider key completes Your Move → generation → validated tools/roll → transcript or Visual Novel, with the visual gate rechecked.
 
 ## Current status
 
-The last application-code commit is `4b5140ee486b2df9c10783947c3ca37e556d72c7`; a later documentation-only commit contains this handoff and the reconciled plans. Phase 1 and Phase 2 product gates are complete. Phase 3 Tasks 1–3 are complete; Task 4 has not started. A cloud agent must fetch and branch from the current `origin/main` tip rather than hard-resetting to the application-code baseline. The local root's intentionally untracked `.worktrees/` directory is not project content.
+The cloud continuation is complete through Phase 3 Task 9. The verified application-code tip on branch `codex/phase3-cloud-continuation` is clean commit `c55a81d584734e570c4bf02dcb2af4c26fdacef5` (`fix: reconcile stale roll resolutions`); this documentation handoff is the only commit after that code tip. Task 9 initial commit is `71b7b2aa383e4632057f6f513464e2e8009ddccb`, and Task 8 ends at `8fd081c290431d55061d85c01ce1111009fe58fe`. Final whole-phase review status is **READY**. This is a cloud code handoff only: Task 10 has not been claimed, and the Phase 3 completion gate remains open. The local root's intentionally untracked `.worktrees/` directory is not project content.
 
 ### Completed
 
@@ -38,22 +37,37 @@ The last application-code commit is `4b5140ee486b2df9c10783947c3ca37e556d72c7`; 
 - **Verified — Phase 3 Task 1:** provider-neutral requests, models, normalized stream events/errors, safe proposed-event envelope, and size bounds in `b326ebc`.
 - **Verified — Phase 3 Task 2:** Keychain credential storage/settings and diagnostics redaction in `f91dd24`. Production credential validation intentionally reports unavailable until live adapters are injected.
 - **Verified — Phase 3 Task 3:** bounded streaming HTTP, incremental SSE/JSONL decoders, deterministic transport seams, exact-task cancellation, and demand-driven provider-stream enforcement in `4b5140e`.
+- **Cloud-complete — Phase 3 Tasks 4–9:** implementation and review-fix ranges are preserved exactly below. These are source/fixture/static-review completions; they do not include local Apple-runtime acceptance.
+
+| Task | Inclusive commit range | Status |
+| --- | --- | --- |
+| 4 — OpenAI/OpenRouter adapters | `9dde19edc0e3ee4648114f8ead2b31a29aaefd3e^..a8ea53e8fec747b44ea7db5988d58f4362965cfa` | Cloud-complete; review fixes closed |
+| 5 — Anthropic/Gemini adapters | `61033a0cbd1005f1ebab63dbf2721cecc61c6372^..c069af30c8c45fb2e29a812b12d415c65fee4518` | Cloud-complete; review fixes closed |
+| 6 — bounded deterministic context | `3107151c5ae87b2d8e3b586a90fd31b48bfb63e7^..9bfa55258f48678d03446e60a1f30310034e9e00` | Cloud-complete; review fixes closed |
+| 7 — native GM tool validation | `4d2b82030269298ba6c7d94b18b76557a557caa7^..2c620f5fec1938edf86dc502b7a4d22d9ce87393` | Cloud-complete; review fixes closed |
+| 8 — TurnEngine and atomic commit | `77f93aa7ee7337ef744f9ada148699d59c81c74a^..8fd081c290431d55061d85c01ce1111009fe58fe` | Cloud-complete through reviewed fix |
+| 9 — dice-roll interruption | `71b7b2aa383e4632057f6f513464e2e8009ddccb^..c55a81d584734e570c4bf02dcb2af4c26fdacef5` | Cloud-complete; final review READY |
+
+The final reviewed Task 9 fix is `c55a81d`; no commit after it is part of the application-code continuation.
 
 ### In progress
 
-- None. Phase 3 Task 3 was completed, reviewed, merged, and pushed before this handoff.
+- None in the cloud branch. Work stops after Task 9 for local pull-back before Task 10 integration.
 
 ### Blocked, open, or unknown
 
-- **Open:** Phase 3 Tasks 4–11 and its completion gate.
-- **Open:** no real user-supplied provider key has been validated or used for a turn.
-- **Open:** production provider validation is wired to `UnavailableProviderCredentialValidator` until Tasks 4–5 supply live adapters.
-- **Open:** physical-device, real VoiceOver, broad device-matrix, and full real-app acceptance. Simulator visual acceptance does not prove these.
-- **Unknown:** the cloud host's Xcode/Simulator availability. Do not infer UI or device acceptance from source/unit work on a host that cannot run those environments.
+- **Open:** local pull-back, conflict review, Xcode project regeneration, and Task 10 integration.
+- **Open:** no real user-supplied provider key has been validated or used for a full turn.
+- **Open:** full-turn provider/runtime acceptance, including a native tool and dice roll, and the Phase 3 completion gate.
+- **Open:** visual fidelity, accessibility/VoiceOver, relaunch/SwiftData runtime, physical-device, and broad device-matrix acceptance.
+- **Cloud limitation:** this host has no Swift, Xcode, or XcodeGen. Swift compilation, XCTest/Swift Testing, Simulator/UI/runtime, real provider/BYOK, visual, and device acceptance could not run and are not claimed.
 - **Local-only historical evidence:** ignored `build/`, `.xcresult`, private recording frames, and `.worktrees/` artifacts do not travel with a fresh clone and must not be prerequisites for cloud work.
 
 ## Work log
 
+- Verified the completed cloud continuation on `codex/phase3-cloud-continuation` at `c55a81d584734e570c4bf02dcb2af4c26fdacef5`; Tasks 4–9 are complete in the ranges recorded above and the final whole-phase review status is READY.
+- Passed cloud-safe verification: `git diff --check`, `git show --check` for every commit in `4b5140e^..HEAD`, `jq -e .` validation for all 24 tracked JSON fixtures, and static scans for credential-looking literals, production logging, and generated artifacts.
+- Confirmed the cloud limitation: Swift/Xcode/XcodeGen/Simulator/XCTest/UI/runtime/provider/BYOK/visual/device acceptance could not run on this host; no Task 10 or Phase 3 gate is claimed.
 - Built and visually accepted the native fixture shell before beginning later phases — Phase 1 gate PASS — commits `97f8243`…`4413e20`.
 - Implemented and completed the staged CDF import, local event store, recovery, library, and relaunch flow — Phase 2 gate PASS — commits `a9bf17b`…`ad16d16`.
 - Froze provider-neutral request/envelope contracts and a closed metadata-free proposal enum — Task 1 PASS — `b326ebc`.
@@ -119,6 +133,8 @@ The last application-code commit is `4b5140ee486b2df9c10783947c3ca37e556d72c7`; 
 - **Reported, visual review:** fresh post-Task-3 Visual Novel title/dialogue captures matched the accepted canonical layout/content, except the status-bar clock.
 - **Reported, scoped reviews:** two independent Task 3 reviewers returned READY with no normal-flow P0–P2 findings.
 - **Evidence boundary:** local result bundles and captures were ignored build artifacts, not portable repository content. Reproduce required evidence on the environment where acceptance is claimed.
+- **Cloud continuation static checks:** `git diff --check` passed; `git show --check` passed for every commit in `4b5140e^..HEAD`; `jq -e .` parsed all 24 tracked JSON files; and narrow static scans found no credential-looking literals, production logging calls, or generated Xcode/build/capture artifacts in the continuation diff.
+- **Cloud runtime boundary:** Swift, Xcode, and XcodeGen are unavailable here, so Swift compilation, XCTest/Swift Testing, Simulator/UI/runtime, provider/BYOK, visual, and physical-device acceptance could not run. These checks remain local and are not implied by the static passes.
 
 Recommended cloud checks, adjusted to the host's installed toolchain:
 
@@ -136,28 +152,36 @@ If Xcode/Simulator is unavailable in the cloud, run every available deterministi
 
 ## Remaining work
 
-1. **Phase 3 Task 4 — immediate:** implement OpenAI and OpenRouter adapters with adapter-local wire DTOs and sanitized fixtures for text, interleaved tools, refusal, rate limit, malformed event, and disconnect. Map both to identical shared normalized events where semantics match; reject unknown tools before execution; supply curated fallback models; assert that sentinel credentials never appear in headers/body diagnostics.
-2. **Task 5:** add Anthropic and Gemini with the same contract matrix, including provider-specific tool/finish/safety mappings and cross-provider normalized equivalence.
-3. **Task 6:** assemble deterministic bounded campaign context, excluding secrets/private transient context and hashing the stable result.
-4. **Task 7:** define the closed native GM tool registry and validate every proposed mutation against schema, campaign ownership, path/URL, size, and relationship boundaries.
-5. **Task 8:** implement the TurnEngine and final-envelope validator/builder. Resolve ordered story persistence and request-run versus durable turn/roll lineage before committing the first happy path. Keep all partial output transient and append the validated terminal result atomically.
-6. **Task 9:** implement bounded dice expressions and deterministic tests, then pause/resume the same logical turn without violating store/reducer idempotency.
-7. **Pull back locally no later than Task 10 integration.** Fetch the cloud branch, inspect its commit sequence, regenerate the Xcode project, run full units and an app build, then execute focused UI and canonical visual regression on the existing local Simulator.
-8. **Task 10 local acceptance:** inject or verify the real TurnEngine in the recording-faithful presentation without geometry changes; run all nine visual captures against the recording authority.
-9. **Task 11 locally:** add truthful offline/failure/retry/relaunch UX, retaining drafts and preserving canonical-state truth.
-10. **Phase 3 completion locally:** validate a real user-owned provider key and complete one full turn including a native tool and roll. Repeat the recorded-transport no-network path and re-run visual/accessibility evidence that the touched UI requires.
-11. After Phase 3 passes, execute Phase 4 voice, Phase 5 durable continuation, and Phase 6 TestFlight hardening according to their plans. Real ElevenLabs, audio interruption, APNs, Dynamic Island, background/termination, Instruments, archive/signing, and clean-device acceptance remain local/device work.
+1. **Pull back locally before Task 10 integration.** Fetch `codex/phase3-cloud-continuation`, inspect `4b5140e..c55a81d` and the task ranges above, regenerate the Xcode project with XcodeGen, then run the full unit, build, UI, and canonical visual lanes on the local Mac/Simulator.
+2. **Task 10 local integration:** inject or verify the real TurnEngine in the recording-faithful presentation without geometry changes; do not mark this task complete from the cloud branch.
+3. **Task 11 locally:** add truthful offline/failure/retry/relaunch UX, retaining drafts and preserving canonical-state truth.
+4. **Phase 3 completion locally:** validate a real user-owned provider key and complete one full turn including a native tool and roll. Repeat the recorded-transport no-network path and re-run visual/accessibility evidence required by the touched UI.
+5. After Phase 3 passes, execute Phase 4 voice, Phase 5 durable continuation, and Phase 6 TestFlight hardening according to their plans. Real ElevenLabs, audio interruption, APNs, Dynamic Island, background/termination, Instruments, archive/signing, and clean-device acceptance remain local/device work.
 
 ## Risks and handoff notes
 
+- Remaining acceptance risks are the real provider key/full turn with a native tool and roll, visual fidelity, accessibility, relaunch/SwiftData runtime behavior, and local conflict/runtime acceptance after pull-back.
 - Provider APIs and model catalogs are temporally unstable. At implementation time, verify current official provider documentation for request/stream schema, authentication, tool calls, error codes, and model discovery; keep wire changes adapter-local.
 - Never commit real provider responses unless they are sanitized and reviewed for keys, prompts, imported story text, account IDs, headers, URLs/query values, or private metadata.
 - The master plans contain future-facing types; current source is authoritative for already-frozen code contracts. Change them only with migration/compatibility tests.
 - Phase 1's canonical Simulator gate passed, but physical-device and real-VoiceOver evidence remain open. Do not rewrite that distinction.
 - The private recording and ignored canonical images are not in Git. A cloud agent can preserve geometry and run existing regression tests, but final side-by-side visual judgment belongs on the local machine with the authority available.
 - The known accessibility-size custom-editor XCTest query timeout is documented as harness evidence. Do not chase it unless normal runtime behavior or a product assertion fails.
-- When the cloud branch is ready to return, do not merge blindly over new local changes. Fetch, inspect the range, fast-forward or review-merge cleanly, regenerate with XcodeGen, then start local acceptance.
+- When the cloud branch is ready to return, do not merge blindly over new local changes. Fetch, inspect the range, fast-forward or review-merge cleanly, regenerate with XcodeGen, then start local acceptance. The cloud branch is ready to return at reviewed `c55a81d`; this does not mean Task 10 or the Phase 3 gate is complete.
 
 ## Next agent instruction
 
-Fetch the current `origin/main`, create a `codex/` Phase 3 continuation branch, read the master plan and active Phase 3 plan in full, and begin Task 4 with a clean adapter-contract RED. Preserve all provider-neutral contracts, streaming/size/cancellation bounds, credential privacy, event-store determinism, and Phase 1 geometry. Commit and push each green task. Stop and hand the branch back no later than Phase 3 Task 10 integration—or earlier if real credentials/runtime behavior are needed—and clearly label every local-only acceptance item as deferred rather than passed.
+Pull back the reviewed `codex/phase3-cloud-continuation` branch at `c55a81d` before Phase 3 Task 10 integration. First run the local sequence below, adapting the destination to the existing booted Simulator:
+
+~~~bash
+git fetch origin codex/phase3-cloud-continuation
+git log --oneline --decorate 4b5140e..FETCH_HEAD
+git diff --stat 4b5140e..FETCH_HEAD
+xcodegen generate
+xcodebuild test -project RPGPlayer.xcodeproj -scheme RPGPlayer -destination '<available iOS Simulator>' -parallel-testing-enabled NO -only-testing:RPGPlayerTests
+xcodebuild build -project RPGPlayer.xcodeproj -scheme RPGPlayer -destination '<available iOS Simulator>'
+xcodebuild test -project RPGPlayer.xcodeproj -scheme RPGPlayer -destination '<available iOS Simulator>' -parallel-testing-enabled NO -only-testing:RPGPlayerUITests
+# Run the local canonical visual lane against the recording authority.
+~~~
+
+Then review local conflicts/runtime failures, integrate Task 10, and run the real-provider/BYOK, native-tool-and-roll, visual, accessibility, relaunch/SwiftData, and device checks. Do not claim Task 10 or the Phase 3 gate complete until those local checks pass; keep every unavailable or deferred acceptance item explicitly labeled.

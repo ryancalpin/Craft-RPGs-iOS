@@ -1,0 +1,1 @@
+{"models":[{"name":"models/vendor/new-model","displayName":"Vendor New Model","inputTokenLimit":128000,"outputTokenLimit":16000,"supportedGenerationMethods":["generateContent"]}]}

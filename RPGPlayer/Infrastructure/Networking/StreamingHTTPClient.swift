@@ -38,6 +38,71 @@ struct StreamingHTTPClient: Sendable {
         try await sequence(for: request, decoder: JSONLineDecoder())
     }
 
+    func boundedData(
+        for request: URLRequest,
+        maximumBytes: Int = 1_000_000
+    ) async throws -> Data {
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await session.bytes(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError {
+            guard error.code != .cancelled, Task.isCancelled == false else {
+                throw CancellationError()
+            }
+            throw StreamingHTTPError.transport(error.code)
+        } catch {
+            guard Task.isCancelled == false else {
+                throw CancellationError()
+            }
+            throw StreamingHTTPError.transport(.unknown)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            bytes.task.cancel()
+            throw StreamingHTTPError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            bytes.task.cancel()
+            throw StreamingHTTPError.httpStatus(httpResponse.statusCode)
+        }
+
+        var data = Data()
+        do {
+            for try await byte in bytes {
+                data.append(byte)
+                guard data.count <= maximumBytes else {
+                    bytes.task.cancel()
+                    throw StreamingHTTPError.frameTooLarge(
+                        maximumBytes: maximumBytes,
+                        actualBytes: data.count
+                    )
+                }
+            }
+        } catch is CancellationError {
+            bytes.task.cancel()
+            throw CancellationError()
+        } catch let error as StreamingHTTPError {
+            bytes.task.cancel()
+            throw error
+        } catch let error as URLError {
+            bytes.task.cancel()
+            guard error.code != .cancelled, Task.isCancelled == false else {
+                throw CancellationError()
+            }
+            throw StreamingHTTPError.transport(error.code)
+        } catch {
+            bytes.task.cancel()
+            guard Task.isCancelled == false else {
+                throw CancellationError()
+            }
+            throw StreamingHTTPError.transport(.unknown)
+        }
+        return data
+    }
+
     private func sequence<Decoder: IncrementalFrameDecoder>(
         for request: URLRequest,
         decoder: Decoder
@@ -161,6 +226,11 @@ struct StreamingHTTPSequence<Decoder: IncrementalFrameDecoder>:
                 }
                 throw StreamingHTTPError.transport(.unknown)
             }
+        }
+
+        mutating func cancel() async {
+            cancellation.cancel()
+            await state.discard()
         }
     }
 

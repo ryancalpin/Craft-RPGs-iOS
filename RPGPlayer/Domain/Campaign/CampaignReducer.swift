@@ -25,7 +25,7 @@ public struct CampaignReductionResult: Equatable, Sendable {
 
 /// Deterministically projects campaign state without performing I/O.
 public struct CampaignReducer: Sendable {
-    public static let reducerSchemaVersion = 1
+    public static let reducerSchemaVersion = 3
 
     public init() {}
 
@@ -82,7 +82,21 @@ public struct CampaignReducer: Sendable {
                 break
             }
 
-            if event.requestID == projection.currentRequestRunID {
+            let isRollResolutionContinuation: Bool = {
+                guard case .rollResolved(let payload) = event.payload,
+                      projection.activeTurnRequestID == event.requestID,
+                      projection.pendingRolls[payload.rollID] != nil,
+                      projection.resolvedRolls[payload.rollID] == nil
+                else {
+                    return false
+                }
+                return true
+            }()
+
+            if isRollResolutionContinuation {
+                projection.currentRequestRunID = event.requestID
+                projection.currentRequestRunDisposition = .accepted
+            } else if event.requestID == projection.currentRequestRunID {
                 if projection.currentRequestRunDisposition == nil {
                     projection.currentRequestRunDisposition = .accepted
                 }
@@ -156,7 +170,11 @@ public struct CampaignReducer: Sendable {
         case .gmMessageCommitted(let payload):
             projection.gmMessages.append(payload)
             projection.pendingDecision = payload.finalQuestion
-            finishTurn(clearingPendingDecision: false, in: &projection)
+            if projection.pendingRolls.isEmpty {
+                finishTurn(clearingPendingDecision: false, in: &projection)
+            } else {
+                projection.gmStatus = nil
+            }
 
         case .recordPatched(let payload):
             projection.records[payload.recordID, default: [:]].merge(
@@ -164,12 +182,38 @@ public struct CampaignReducer: Sendable {
                 uniquingKeysWith: { _, replacement in replacement }
             )
 
+        case .clockUpdated(let payload):
+            projection.clocks[payload.clockRecordID] = payload
+            projection.records[payload.clockRecordID, default: [:]].merge(
+                [
+                    "current": .integer(Int64(payload.current)),
+                    "maximum": .integer(Int64(payload.maximum))
+                ],
+                uniquingKeysWith: { _, replacement in replacement }
+            )
+
+        case .assetAttached(let payload):
+            projection.assetAttachments[payload.targetRecordID + "." + payload.fieldID] = payload
+            projection.records[payload.targetRecordID, default: [:]][payload.fieldID] = .string(payload.assetID)
+
         case .rollRequested(let payload):
+            // Repair replay of pre-fix batches that placed this event after
+            // the terminal message.
+            projection.activeTurnRequestID = event.requestID
             projection.pendingRolls[payload.rollID] = payload
 
         case .rollResolved(let payload):
+            guard projection.pendingRolls[payload.rollID] != nil,
+                  projection.resolvedRolls[payload.rollID] == nil else {
+                break
+            }
             projection.pendingRolls[payload.rollID] = nil
             projection.resolvedRolls[payload.rollID] = payload
+            projection.latestResolvedRollID = payload.rollID
+            if projection.pendingRolls.isEmpty {
+                projection.activeTurnRequestID = nil
+                projection.gmStatus = nil
+            }
 
         case .sceneChanged(let payload):
             projection.currentScene = payload
@@ -180,6 +224,9 @@ public struct CampaignReducer: Sendable {
                 break
             }
             projection.voiceAssignments[payload.characterID] = payload
+
+        case .voiceSuggestionProposed(let payload):
+            projection.voiceSuggestions[payload.characterID] = payload
 
         case .turnCancelled(let payload):
             let outcome = ProjectedTurnOutcome.cancelled(

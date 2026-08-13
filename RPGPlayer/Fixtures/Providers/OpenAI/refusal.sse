@@ -1,0 +1,2 @@
+event: response.refusal.delta
+data: {"type":"response.refusal.delta","delta":"The requested scene cannot be completed."}

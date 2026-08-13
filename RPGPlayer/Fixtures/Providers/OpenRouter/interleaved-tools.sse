@@ -1,0 +1,13 @@
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-search","type":"function","function":{"name":"searchRecords","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call-roll","type":"function","function":{"name":"requestRoll","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"query\":"}}]},"finish_reason":null}]}
+
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"expression\":\"1d20+4\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"bell rope\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"fixture-response","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]

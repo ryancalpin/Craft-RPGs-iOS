@@ -74,7 +74,8 @@ struct ProjectionLoaderTests {
     }
 
     @Test
-    func incompatibleCheckpointFallsBackToFullReplay() async throws {
+    func legacyCheckpointSchemaFallsBackToFullReplay() async throws {
+        #expect(CampaignReducer.reducerSchemaVersion == 3)
         let fixture = try makeLoaderFixture()
         let campaignID = try loaderUUID(520)
         let appended = try await fixture.store.append(
@@ -92,7 +93,7 @@ struct ProjectionLoaderTests {
         try await fixture.store.saveProjectionCheckpoint(
             ProjectionCheckpoint(
                 sourceSequence: 2,
-                reducerSchemaVersion: 999,
+                reducerSchemaVersion: 1,
                 projection: incompatibleProjection
             )
         )

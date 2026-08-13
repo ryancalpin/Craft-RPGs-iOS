@@ -101,7 +101,8 @@ final class AppDependencyGraph {
             campaignID: campaignID,
             projectionLoader: projectionLoader,
             campaignDirectory: campaignDirectory,
-            presentationStore: presentationStore
+            presentationStore: presentationStore,
+            campaignStore: store
         )
     }
 

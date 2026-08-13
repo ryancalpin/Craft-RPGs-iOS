@@ -9,6 +9,14 @@ public protocol CampaignStore: Sendable {
         expectedSequence: Int64
     ) async throws -> [CampaignEvent]
 
+    /// Appends the single canonical resolution for a pending roll. A roll
+    /// continues the turn request lineage after the original atomic run, so
+    /// stores may apply a stricter, lineage-aware duplicate check here.
+    func appendRollResolution(
+        batch: [CampaignEvent],
+        expectedSequence: Int64
+    ) async throws -> [CampaignEvent]
+
     func events(
         for campaignID: UUID,
         after sequence: Int64,
@@ -37,6 +45,17 @@ public protocol CampaignStore: Sendable {
 }
 
 public extension CampaignStore {
+    func appendRollResolution(
+        batch: [CampaignEvent],
+        expectedSequence: Int64
+    ) async throws -> [CampaignEvent] {
+        try await append(
+            batch: batch,
+            assets: [],
+            expectedSequence: expectedSequence
+        )
+    }
+
     func append(
         batch: [CampaignEvent],
         expectedSequence: Int64

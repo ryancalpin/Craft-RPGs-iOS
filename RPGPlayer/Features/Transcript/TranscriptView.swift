@@ -9,6 +9,10 @@ struct TranscriptView: View {
     let moveSheetReservation: CGFloat?
     @Binding var dockFocusRequest: Bool
     let openMove: () -> Void
+    let pendingRoll: RollRequestedPayload?
+    let resolvedRoll: RollResolvedPayload?
+    let resolveRoll: @MainActor (RollRequestedPayload) async throws -> RollResolvedPayload
+    let dismissRoll: () -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -30,7 +34,15 @@ struct TranscriptView: View {
                         ForEach(messages) { message in
                             TranscriptMessageView(
                                 message: message,
-                                usesFixtureCopy: usesFixtureCopy
+                                usesFixtureCopy: usesFixtureCopy,
+                                pendingRoll: message.id == messages.last?.id
+                                    ? pendingRoll
+                                    : nil,
+                                resolvedRoll: message.id == messages.last?.id
+                                    ? resolvedRoll
+                                    : nil,
+                                resolveRoll: resolveRoll,
+                                dismissRoll: dismissRoll
                             )
                         }
                     }
@@ -98,21 +110,42 @@ private struct TranscriptMessageView: View {
     @Environment(\.playerReduceMotionOverride) private var reduceMotionOverride
     let message: GMMessage
     let usesFixtureCopy: Bool
+    let pendingRoll: RollRequestedPayload?
+    let resolvedRoll: RollResolvedPayload?
+    let resolveRoll: @MainActor (RollRequestedPayload) async throws -> RollResolvedPayload
+    let dismissRoll: () -> Void
     @State private var actionsExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ForEach(message.prose.indices, id: \.self) { index in
-                Text(message.prose[index])
-                    .font(.body)
-                    .foregroundStyle(PlayerTheme.primaryText)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(message.transcript) { block in
+                switch block.kind {
+                case .narration:
+                    Text(block.text)
+                        .font(.body)
+                        .foregroundStyle(PlayerTheme.primaryText)
+                        .lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                case .dialogue:
+                    TranscriptDialogueBlock(
+                        block: DialogueBlock(
+                            id: block.id,
+                            speaker: block.speaker ?? "Narrator",
+                            mood: block.mood,
+                            text: block.text
+                        )
+                    )
+                }
             }
 
-            ForEach(message.dialogue) { dialogue in
-                TranscriptDialogueBlock(block: dialogue)
+            if let rollRequest = pendingRoll {
+                DiceRollCard(
+                    request: rollRequest,
+                    resolved: resolvedRoll,
+                    resolve: { try await resolveRoll(rollRequest) },
+                    onDismiss: dismissRoll
+                )
             }
 
             VStack(alignment: .leading, spacing: 0) {
@@ -223,7 +256,13 @@ private struct TranscriptDialogueBlock: View {
             safeAreaBottom: 34,
             moveSheetReservation: nil,
             dockFocusRequest: .constant(false),
-            openMove: {}
+            openMove: {},
+            pendingRoll: nil,
+            resolvedRoll: nil,
+            resolveRoll: { _ in
+                throw CancellationError()
+            },
+            dismissRoll: {}
         )
     }
     .preferredColorScheme(.dark)

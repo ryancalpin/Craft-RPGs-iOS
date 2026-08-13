@@ -11,6 +11,9 @@ struct PlayerSessionState: Equatable, Sendable {
     var generation: GenerationPhase?
     var activeRequestID: String?
     var completedRequestIDs: Set<String>
+    var pendingRoll: RollRequestedPayload? = nil
+    var resolvedRolls: [UUID: RollResolvedPayload] = [:]
+    var lastResolvedRoll: RollResolvedPayload? = nil
 
     var latestMessage: GMMessage {
         messages[messages.count - 1]
@@ -23,13 +26,22 @@ struct PlayerSessionState: Equatable, Sendable {
         case .closeDrawer:
             drawer = .none
         case .setMode(let value):
+            guard value != .visualNovel || pendingRoll == nil else {
+                mode = .transcript
+                return
+            }
             mode = value
             beatIndex = min(beatIndex, max(0, latestMessage.beats.count - 1))
         case .previousBeat:
             beatIndex = max(0, beatIndex - 1)
         case .nextBeat:
+            guard pendingRoll == nil else { return }
             beatIndex = min(max(0, latestMessage.beats.count - 1), beatIndex + 1)
         case .finishVisualNovel:
+            guard pendingRoll == nil else {
+                mode = .transcript
+                return
+            }
             mode = .transcript
             beatIndex = min(beatIndex, max(0, latestMessage.beats.count - 1))
             isTurnSheetPresented = true
@@ -58,6 +70,14 @@ struct PlayerSessionState: Equatable, Sendable {
         case .generationFailed:
             activeRequestID = nil
             generation = .needsAttention
+        case .rollResolved(let payload):
+            guard pendingRoll?.rollID == payload.rollID,
+                  resolvedRolls[payload.rollID] == nil else {
+                return
+            }
+            pendingRoll = nil
+            resolvedRolls[payload.rollID] = payload
+            lastResolvedRoll = payload
         }
     }
 }
@@ -75,4 +95,5 @@ enum PlayerSessionAction: Equatable, Sendable {
     case generationPhaseChanged(GenerationPhase)
     case generationCompleted(requestID: String, message: GMMessage)
     case generationFailed
+    case rollResolved(RollResolvedPayload)
 }

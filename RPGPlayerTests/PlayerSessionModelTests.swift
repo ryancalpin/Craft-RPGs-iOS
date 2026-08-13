@@ -150,6 +150,80 @@ struct PlayerSessionModelTests {
     }
 
     @Test
+    func orderedTranscriptSurvivesPersistenceProjectionAndUIReconstruction() async throws {
+        let messageID = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+        let narrationOneID = UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+        let dialogueID = UUID(uuidString: "33333333-3333-4333-8333-333333333333")!
+        let narrationTwoID = UUID(uuidString: "44444444-4444-4444-8444-444444444444")!
+        let requestID = UUID(uuidString: "55555555-5555-4555-8555-555555555555")!
+        let payload = GMMessageCommittedPayload(
+            messageID: messageID,
+            narration: ["The bell sounds once.", "Fog closes over the quay."],
+            dialogue: [
+                CampaignDialogueBlock(
+                    id: dialogueID,
+                    speaker: "Elias Grey",
+                    mood: "Calm",
+                    text: "The harbor remembers."
+                )
+            ],
+            orderedTranscript: [
+                CampaignTranscriptBlock(id: narrationOneID, kind: .narration, text: "The bell sounds once."),
+                CampaignTranscriptBlock(id: dialogueID, kind: .dialogue, speaker: "Elias Grey", mood: "Calm", text: "The harbor remembers."),
+                CampaignTranscriptBlock(id: narrationTwoID, kind: .narration, text: "Fog closes over the quay.")
+            ],
+            beats: [
+                CampaignStoryBeat(id: narrationOneID, kind: .narration, text: "The bell sounds once."),
+                CampaignStoryBeat(id: dialogueID, kind: .dialogue, speaker: "Elias Grey", mood: "Calm", text: "The harbor remembers."),
+                CampaignStoryBeat(id: narrationTwoID, kind: .narration, text: "Fog closes over the quay.")
+            ],
+            finalQuestion: "What do you do?"
+        )
+        let encoded = try JSONEncoder().encode(payload)
+        #expect(try JSONDecoder().decode(GMMessageCommittedPayload.self, from: encoded) == payload)
+
+        let harness = try await PlayerSessionHarness.make(
+            eventsAfterImport: [
+                CampaignEvent(
+                    id: UUID(uuidString: "66666666-6666-4666-8666-666666666666")!,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: requestID,
+                    timestamp: Date(timeIntervalSince1970: 2),
+                    schemaVersion: 1,
+                    payload: .playerActionSubmitted(PlayerActionSubmittedPayload(action: "Listen"))
+                ),
+                CampaignEvent(
+                    id: UUID(uuidString: "77777777-7777-4777-8777-777777777777")!,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: requestID,
+                    timestamp: Date(timeIntervalSince1970: 3),
+                    schemaVersion: 1,
+                    payload: .gmMessageCommitted(payload)
+                )
+            ]
+        )
+        defer { harness.removeFiles() }
+
+        let model = harness.makeModel()
+        try await model.load()
+        let state = try #require(model.state)
+
+        #expect(state.latestMessage.transcript.map(\.text) == [
+            "The bell sounds once.",
+            "The harbor remembers.",
+            "Fog closes over the quay."
+        ])
+        #expect(state.latestMessage.transcript.map { block in
+            switch block.kind {
+            case .narration: "narration"
+            case .dialogue: "dialogue"
+            }
+        } == ["narration", "dialogue", "narration"])
+    }
+
+    @Test
     func advancingBeatRestoresExactlyFromPresentationStore() async throws {
         let harness = try await PlayerSessionHarness.make()
         defer { harness.removeFiles() }
@@ -286,6 +360,295 @@ struct PlayerSessionModelTests {
                 == "Harbor at Dawn\n\nSunlight reaches the wet stones."
         )
     }
+
+    @Test
+    func resolvingPendingRollAppendsOnceAndReconstructsCanonicalResult() async throws {
+        let requestID = UUID(uuidString: "88888888-8888-4888-8888-888888888888")!
+        let rollID = UUID(uuidString: "99999999-9999-4999-8999-999999999999")!
+        let harness = try await PlayerSessionHarness.make(
+            eventsAfterImport: [
+                CampaignEvent(
+                    id: UUID(uuidString: "12121212-1212-4121-8121-121212121212")!,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: requestID,
+                    timestamp: Date(timeIntervalSince1970: 2),
+                    schemaVersion: 1,
+                    payload: .playerActionSubmitted(
+                        PlayerActionSubmittedPayload(action: "Cross the bridge")
+                    )
+                ),
+                CampaignEvent(
+                    id: UUID(uuidString: "13131313-1313-4131-8131-131313131313")!,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: requestID,
+                    timestamp: Date(timeIntervalSince1970: 3),
+                    schemaVersion: 1,
+                    payload: .rollRequested(
+                        RollRequestedPayload(
+                            rollID: rollID,
+                            expression: "1d20+4",
+                            prompt: "Cross unseen"
+                        )
+                    )
+                ),
+                CampaignEvent(
+                    id: UUID(uuidString: "14141414-1414-4141-8141-141414141414")!,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: requestID,
+                    timestamp: Date(timeIntervalSince1970: 4),
+                    schemaVersion: 1,
+                    payload: .gmMessageCommitted(
+                        GMMessageCommittedPayload(
+                            messageID: UUID(uuidString: "15151515-1515-4151-8151-151515151515")!,
+                            narration: ["The bridge waits in the rain."],
+                            dialogue: [],
+                            beats: [],
+                            finalQuestion: ""
+                        )
+                    )
+                )
+            ]
+        )
+        defer { harness.removeFiles() }
+
+        let model = harness.makeModel()
+        try await model.load()
+        #expect(model.state?.pendingRoll?.rollID == rollID)
+
+        let result = try await model.resolveRoll(rollID: rollID)
+
+        #expect(result.rollID == rollID)
+        #expect(result.results.count == 1)
+        #expect(result.total == result.results[0] + result.modifier)
+        #expect(model.state?.pendingRoll == nil)
+        #expect(model.state?.lastResolvedRoll == result)
+        #expect(model.projection?.pendingRolls[rollID] == nil)
+        #expect(model.projection?.resolvedRolls[rollID] == result)
+        #expect(
+            (try await harness.store.events(
+                for: PlayerSessionHarness.campaignID,
+                after: 0,
+                limit: 32
+            )).filter {
+                if case .rollResolved = $0.payload { return true }
+                return false
+            }.count == 1
+        )
+
+        await #expect(throws: PlayerSessionModelError.rollNotPending) {
+            _ = try await model.resolveRoll(rollID: rollID)
+        }
+        #expect(
+            (try await harness.store.events(
+                for: PlayerSessionHarness.campaignID,
+                after: 0,
+                limit: 32
+            )).filter {
+                if case .rollResolved = $0.payload { return true }
+                return false
+            }.count == 1
+        )
+    }
+
+    @Test
+    func duplicateResolutionConflictReloadsAndReturnsCanonicalResult() async throws {
+        let roll = PlayerSessionRollFixtures.firstRoll
+        let harness = try await PlayerSessionHarness.make(
+            eventsAfterImport: PlayerSessionRollFixtures.events(
+                rolls: [roll]
+            )
+        )
+        defer { harness.removeFiles() }
+
+        let model = harness.makeModel()
+        try await model.load()
+
+        let canonical = RollResolvedPayload(
+            rollID: roll.rollID,
+            results: [10],
+            modifier: 4,
+            total: 14
+        )
+        _ = try await harness.store.appendRollResolution(
+            batch: [
+                CampaignEvent(
+                    id: PlayerSessionRollFixtures.externalResolutionEventID,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: PlayerSessionRollFixtures.requestID,
+                    timestamp: Date(timeIntervalSince1970: 10),
+                    schemaVersion: 1,
+                    payload: .rollResolved(canonical)
+                )
+            ],
+            expectedSequence: 4
+        )
+
+        let result = try await model.resolveRoll(rollID: roll.rollID)
+
+        #expect(result == canonical)
+        #expect(model.state?.pendingRoll == nil)
+        #expect(model.state?.resolvedRolls[roll.rollID] == canonical)
+        #expect(model.projection?.resolvedRolls[roll.rollID] == canonical)
+        #expect(
+            (try await harness.store.events(
+                for: PlayerSessionHarness.campaignID,
+                after: 0,
+                limit: 32
+            )).filter {
+                if case .rollResolved = $0.payload { return true }
+                return false
+            }.count == 1
+        )
+    }
+
+    @Test
+    func expectedSequenceConflictReloadsAndReportsRollNoLongerPending() async throws {
+        let roll = PlayerSessionRollFixtures.firstRoll
+        let harness = try await PlayerSessionHarness.make(
+            eventsAfterImport: PlayerSessionRollFixtures.events(
+                rolls: [roll]
+            )
+        )
+        defer { harness.removeFiles() }
+
+        let model = harness.makeModel()
+        try await model.load()
+
+        _ = try await harness.store.append(
+            batch: [
+                CampaignEvent(
+                    id: PlayerSessionRollFixtures.externalActionEventID,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: PlayerSessionRollFixtures.externalRequestID,
+                    timestamp: Date(timeIntervalSince1970: 11),
+                    schemaVersion: 1,
+                    payload: .playerActionSubmitted(
+                        PlayerActionSubmittedPayload(action: "Take another path")
+                    )
+                )
+            ],
+            expectedSequence: 4
+        )
+
+        await #expect(throws: PlayerSessionModelError.rollNotPending) {
+            _ = try await model.resolveRoll(rollID: roll.rollID)
+        }
+
+        #expect(model.state?.pendingRoll == nil)
+        #expect(model.state?.activeRequestID == PlayerSessionRollFixtures.externalRequestID.uuidString)
+        #expect(
+            (try await harness.store.events(
+                for: PlayerSessionHarness.campaignID,
+                after: 0,
+                limit: 32
+            )).contains {
+                if case .rollResolved = $0.payload { return true }
+                return false
+            } == false
+        )
+    }
+
+    @Test
+    func multipleRollResultsStayKeyedToTheirRollIDsAndLatestResolution() async throws {
+        let earlierRoll = PlayerSessionRollFixtures.firstRoll
+        let laterRoll = PlayerSessionRollFixtures.secondRoll
+        let harness = try await PlayerSessionHarness.make(
+            eventsAfterImport: PlayerSessionRollFixtures.events(
+                rolls: [earlierRoll, laterRoll]
+            )
+        )
+        defer { harness.removeFiles() }
+
+        let model = harness.makeModel()
+        try await model.load()
+        #expect(model.state?.pendingRoll?.rollID == earlierRoll.rollID)
+
+        let laterResult = try await model.resolveRoll(rollID: laterRoll.rollID)
+        #expect(model.state?.pendingRoll?.rollID == earlierRoll.rollID)
+        #expect(model.state?.resolvedRolls[laterRoll.rollID] == laterResult)
+        #expect(model.state?.lastResolvedRoll == laterResult)
+
+        let earlierResult = try await model.resolveRoll(rollID: earlierRoll.rollID)
+        #expect(model.state?.pendingRoll == nil)
+        #expect(model.state?.resolvedRolls[earlierRoll.rollID] == earlierResult)
+        #expect(model.state?.resolvedRolls[laterRoll.rollID] == laterResult)
+        #expect(model.state?.lastResolvedRoll == earlierResult)
+        #expect(model.projection?.latestResolvedRollID == earlierRoll.rollID)
+    }
+}
+
+private enum PlayerSessionRollFixtures {
+    static let requestID = UUID(uuidString: "88888888-8888-4888-8888-888888888888")!
+    static let externalRequestID = UUID(uuidString: "99999999-9999-4999-8999-999999999999")!
+    static let firstRoll = RollRequestedPayload(
+        rollID: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!,
+        expression: "1d20+4",
+        prompt: "Cross unseen"
+    )
+    static let secondRoll = RollRequestedPayload(
+        rollID: UUID(uuidString: "ffffffff-ffff-4fff-8fff-ffffffffffff")!,
+        expression: "1d20+1",
+        prompt: "Read the current"
+    )
+    static let externalResolutionEventID = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1")!
+    static let externalActionEventID = UUID(uuidString: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2")!
+
+    static func events(rolls: [RollRequestedPayload]) -> [CampaignEvent] {
+        var events = [
+            CampaignEvent(
+                id: UUID(uuidString: "12121212-1212-4121-8121-121212121212")!,
+                campaignID: PlayerSessionHarness.campaignID,
+                sequence: 0,
+                requestID: requestID,
+                timestamp: Date(timeIntervalSince1970: 2),
+                schemaVersion: 1,
+                payload: .playerActionSubmitted(
+                    PlayerActionSubmittedPayload(action: "Cross the bridge")
+                )
+            )
+        ]
+        for (index, roll) in rolls.enumerated() {
+            let eventID = index == 0
+                ? UUID(uuidString: "13131313-1313-4131-8131-131313131313")!
+                : UUID(uuidString: "14141414-1414-4141-8141-141414141414")!
+            events.append(
+                CampaignEvent(
+                    id: eventID,
+                    campaignID: PlayerSessionHarness.campaignID,
+                    sequence: 0,
+                    requestID: requestID,
+                    timestamp: Date(timeIntervalSince1970: 3 + Double(index)),
+                    schemaVersion: 1,
+                    payload: .rollRequested(roll)
+                )
+            )
+        }
+        events.append(
+            CampaignEvent(
+                id: UUID(uuidString: "15151515-1515-4151-8151-151515151515")!,
+                campaignID: PlayerSessionHarness.campaignID,
+                sequence: 0,
+                requestID: requestID,
+                timestamp: Date(timeIntervalSince1970: 5),
+                schemaVersion: 1,
+                payload: .gmMessageCommitted(
+                    GMMessageCommittedPayload(
+                        messageID: UUID(uuidString: "16161616-1616-4161-8161-161616161616")!,
+                        narration: ["The crossing waits."],
+                        dialogue: [],
+                        beats: [],
+                        finalQuestion: "What do you do?"
+                    )
+                )
+            )
+        )
+        return events
+    }
 }
 
 private struct PlayerSessionHarness {
@@ -386,7 +749,8 @@ private struct PlayerSessionHarness {
             projectionLoader: ProjectionLoader(store: store),
             campaignDirectory: campaignDirectory,
             presentationStore: presentationStore
-                ?? PlayerPresentationStore(fileURL: presentationFileURL)
+                ?? PlayerPresentationStore(fileURL: presentationFileURL),
+            campaignStore: store
         )
     }
 

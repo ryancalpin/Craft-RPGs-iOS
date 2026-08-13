@@ -228,6 +228,30 @@ struct ProviderContractTests {
     }
 
     @Test
+    func malformedNonFiniteEnvelopeEncodingIsNotClassifiedAsOversized() throws {
+        let envelope = VersionedTurnEnvelope(
+            envelope: TurnEnvelope(
+                requestID: try uuid("11111111-1111-4111-8111-111111111111"),
+                narration: [],
+                beats: [],
+                proposedEvents: [
+                    .recordPatch(
+                        recordID: "record-1",
+                        fields: ["score": .number(.nan)]
+                    )
+                ],
+                pendingDecision: nil,
+                voiceSegments: [],
+                usage: nil
+            )
+        )
+
+        #expect(throws: VersionedTurnEnvelope.CodingError.malformedEncoding) {
+            try envelope.encoded()
+        }
+    }
+
+    @Test
     func completedToolArgumentsUseBoundedCanonicalJSON() throws {
         let accepted = try ProviderToolArguments(
             values: [

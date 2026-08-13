@@ -75,6 +75,22 @@ final class PlayerSessionStateTests: XCTestCase {
         XCTAssertEqual(state.mode, .transcript)
     }
 
+    func testPendingRollBlocksVisualNovelProgressionUntilResolution() {
+        var state = makeState()
+        state.pendingRoll = RollRequestedPayload(
+            rollID: UUID(),
+            expression: "1d20",
+            prompt: "Test the bridge"
+        )
+        state.reduce(.setMode(.visualNovel))
+        state.reduce(.nextBeat)
+        state.reduce(.finishVisualNovel)
+
+        XCTAssertEqual(state.mode, .transcript)
+        XCTAssertEqual(state.beatIndex, 0)
+        XCTAssertFalse(state.isTurnSheetPresented)
+    }
+
     private func makeState() -> PlayerSessionState {
         PlayerSessionState(
             campaignTitle: "Test Campaign",

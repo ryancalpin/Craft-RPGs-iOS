@@ -1,0 +1,11 @@
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"{\"schemaVersion\":1,\"envelope\":{\"requestID\":\"11111111-1111-4111-8111-111111111111\",\"narration\":[],\"beats\":[],\"proposedEvents\":[{\"type\":\"recordPatch\",\"data\":\"{\\\"recordID\\\":\\\"record-1\\\",\\\"fields\\\":\\\"{\\\\\\\"customField\\\\\\\":\\\\\\\"preserved\\\\\\\",\\\\\\\"nested\\\\\\\":{\\\\\\\"amount\\\\\\\":7}}\\\"}\"}],\"pendingDecision\":null,\"voiceSegments\":[],\"usage\":null}}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":9}}

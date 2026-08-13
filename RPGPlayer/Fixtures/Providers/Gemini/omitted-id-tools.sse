@@ -1,0 +1,5 @@
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"searchRecords","args":{"query":"bell rope"}}}],"role":"model"},"index":0}]}
+
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"requestRoll","args":{"expression":"1d20+4"}}}],"role":"model"},"index":0}]}
+
+data: {"candidates":[{"content":{"role":"model"},"finishReason":"STOP","index":0}]}

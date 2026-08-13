@@ -29,7 +29,10 @@ extension PlayerSessionState {
         isTurnSheetPresented: false,
         generation: nil,
         activeRequestID: nil,
-        completedRequestIDs: []
+        completedRequestIDs: [],
+        pendingRoll: nil,
+        resolvedRolls: [:],
+        lastResolvedRoll: nil
     )
 }
 

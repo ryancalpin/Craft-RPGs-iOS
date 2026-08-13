@@ -99,6 +99,14 @@ struct CampaignReducerTests {
                         source: .manual
                     )
             )
+        case .voiceSuggestionProposed:
+            #expect(
+                result.projection.voiceSuggestions["character-guide"]
+                    == VoiceSuggestionProposedPayload(
+                        characterID: "character-guide",
+                        styleDescription: "Warm and cautious"
+                    )
+            )
         case .turnCancelled:
             #expect(
                 result.projection.lastTurnOutcome
@@ -449,10 +457,10 @@ struct CampaignReducerTests {
             ]
         ).projection
 
-        #expect(projection.activeTurnRequestID == nil)
+        #expect(projection.activeTurnRequestID == firstRequestID)
         #expect(projection.currentRequestRunID == firstRequestID)
         #expect(projection.gmStatus == nil)
-        #expect(projection.pendingRolls.isEmpty)
+        #expect(projection.pendingRolls[rollID]?.expression == "1d20+3")
         #expect(projection.pendingDecision == "What do you do?")
 
         projection = reducer.reduce(
@@ -494,6 +502,120 @@ struct CampaignReducerTests {
         #expect(projection.currentRequestRunID == finalRequestID)
         #expect(projection.pendingDecision == nil)
         #expect(projection.turnOutcomes.count == 2)
+    }
+
+    @Test
+    func rollResolutionContinuesThePendingTurnLineageExactlyOnce() throws {
+        let campaignID = try reducerUUID(136)
+        let requestID = try reducerUUID(266)
+        let rollID = try reducerUUID(467)
+        let reducer = CampaignReducer()
+        let events = [
+            try reducerEvent(
+                campaignID: campaignID,
+                eventID: 70,
+                requestID: 266,
+                sequence: 1,
+                payload: .rollRequested(
+                    RollRequestedPayload(
+                        rollID: rollID,
+                        expression: "1d20+4",
+                        prompt: "Cross unseen"
+                    )
+                )
+            ),
+            try reducerEvent(
+                campaignID: campaignID,
+                eventID: 71,
+                requestID: 266,
+                sequence: 2,
+                payload: .gmMessageCommitted(
+                    GMMessageCommittedPayload(
+                        messageID: try reducerUUID(468),
+                        narration: ["The bridge waits."],
+                        dialogue: [],
+                        beats: [],
+                        finalQuestion: ""
+                    )
+                )
+            ),
+            try reducerEvent(
+                campaignID: campaignID,
+                eventID: 72,
+                requestID: 266,
+                sequence: 3,
+                payload: .rollResolved(
+                    RollResolvedPayload(
+                        rollID: rollID,
+                        results: [12],
+                        modifier: 4,
+                        total: 16
+                    )
+                )
+            )
+        ]
+
+        let firstPass = reducer.reduce(
+            CampaignProjection(campaignID: campaignID),
+            events: events
+        )
+        let replay = reducer.reduce(firstPass.projection, events: events)
+
+        #expect(firstPass.diagnostics.isEmpty)
+        #expect(firstPass.projection.currentRequestRunID == requestID)
+        #expect(firstPass.projection.activeTurnRequestID == nil)
+        #expect(firstPass.projection.pendingRolls[rollID] == nil)
+        #expect(firstPass.projection.resolvedRolls[rollID]?.total == 16)
+        #expect(replay.projection == firstPass.projection)
+        #expect(replay.diagnostics.isEmpty)
+    }
+
+    @Test
+    func canonicalClockAndAssetEventsUpdateProjectionRecords() throws {
+        let campaignID = try reducerUUID(135)
+        let requestID = try reducerUUID(265)
+        let result = CampaignReducer().reduce(
+            CampaignProjection(campaignID: campaignID),
+            events: [
+                try reducerEvent(
+                    campaignID: campaignID,
+                    eventID: 68,
+                    requestID: 265,
+                    sequence: 1,
+                    payload: .clockUpdated(
+                        ClockUpdatedPayload(
+                            clockRecordID: "clock-journey",
+                            current: 2,
+                            maximum: 6
+                        )
+                    )
+                ),
+                try reducerEvent(
+                    campaignID: campaignID,
+                    eventID: 69,
+                    requestID: 265,
+                    sequence: 2,
+                    payload: .assetAttached(
+                        AssetAttachedPayload(
+                            assetID: "asset-map",
+                            targetRecordID: "scene-quay",
+                            fieldID: "mapAsset"
+                        )
+                    )
+                )
+            ]
+        )
+
+        #expect(result.projection.records["clock-journey"] == [
+            "current": .integer(2),
+            "maximum": .integer(6)
+        ])
+        #expect(result.projection.records["scene-quay"] == [
+            "mapAsset": .string("asset-map")
+        ])
+        #expect(result.projection.clocks["clock-journey"]?.current == 2)
+        #expect(result.projection.assetAttachments["scene-quay.mapAsset"]?.assetID == "asset-map")
+        #expect(result.projection.currentRequestRunID == requestID)
     }
 
     @Test(arguments: ReducerDiagnosticFixture.allCases)
@@ -541,6 +663,7 @@ enum ReducerPayloadFixture: CaseIterable, Sendable {
     case rollResolved
     case sceneChanged
     case voiceAssignmentChanged
+    case voiceSuggestionProposed
     case turnCancelled
     case turnFailed
 
@@ -619,6 +742,13 @@ enum ReducerPayloadFixture: CaseIterable, Sendable {
                     characterID: "character-guide",
                     voiceID: "voice-warm-01",
                     source: .manual
+                )
+            )
+        case .voiceSuggestionProposed:
+            .voiceSuggestionProposed(
+                VoiceSuggestionProposedPayload(
+                    characterID: "character-guide",
+                    styleDescription: "Warm and cautious"
                 )
             )
         case .turnCancelled:

@@ -98,6 +98,11 @@ actor PlayerPresentationStore: PlayerPresentationPersisting {
 enum PlayerSessionModelError: Error, Equatable, Sendable {
     case missingNormalizedProject
     case unreadableNormalizedProject
+    case campaignStoreUnavailable
+    case rollNotPending
+    case rollAlreadyResolved
+    case invalidRollExpression
+    case rollPersistenceFailed
 }
 
 @MainActor
@@ -112,18 +117,22 @@ final class PlayerSessionModel {
     private let projectionLoader: ProjectionLoader
     private let campaignDirectory: CampaignDirectory
     private let presentationStore: any PlayerPresentationPersisting
+    private let campaignStore: (any CampaignStore)?
     private let decoder = JSONDecoder()
+    private var resolvingRollIDs = Set<UUID>()
 
     init(
         campaignID: UUID,
         projectionLoader: ProjectionLoader,
         campaignDirectory: CampaignDirectory,
-        presentationStore: any PlayerPresentationPersisting
+        presentationStore: any PlayerPresentationPersisting,
+        campaignStore: (any CampaignStore)? = nil
     ) {
         self.campaignID = campaignID
         self.projectionLoader = projectionLoader
         self.campaignDirectory = campaignDirectory
         self.presentationStore = presentationStore
+        self.campaignStore = campaignStore
     }
 
     func load() async throws {
@@ -140,6 +149,108 @@ final class PlayerSessionModel {
             campaignID: campaignID,
             project: project,
             projection: projection,
+            storedPresentation: storedPresentation
+        )
+    }
+
+    func resolveRoll(
+        rollID: UUID,
+        roller: DiceRoller = DiceRoller()
+    ) async throws -> RollResolvedPayload {
+        guard resolvingRollIDs.insert(rollID).inserted else {
+            throw PlayerSessionModelError.rollAlreadyResolved
+        }
+        defer { resolvingRollIDs.remove(rollID) }
+
+        guard let projection,
+              let pending = projection.pendingRolls[rollID] else {
+            throw PlayerSessionModelError.rollNotPending
+        }
+        guard projection.resolvedRolls[rollID] == nil else {
+            throw PlayerSessionModelError.rollAlreadyResolved
+        }
+        guard let requestID = projection.activeTurnRequestID else {
+            throw PlayerSessionModelError.rollNotPending
+        }
+        guard let campaignStore else {
+            throw PlayerSessionModelError.campaignStoreUnavailable
+        }
+
+        try Task.checkCancellation()
+        let expression: DiceExpression
+        do {
+            expression = try DiceExpression(pending.expression)
+        } catch {
+            throw PlayerSessionModelError.invalidRollExpression
+        }
+        let roll = roller.roll(expression)
+        try Task.checkCancellation()
+
+        let event = CampaignEvent(
+            id: UUID(),
+            campaignID: campaignID,
+            sequence: 0,
+            requestID: requestID,
+            timestamp: Date(),
+            schemaVersion: 1,
+            payload: .rollResolved(
+                RollResolvedPayload(
+                    rollID: rollID,
+                    results: roll.results,
+                    modifier: roll.modifier,
+                    total: roll.total
+                )
+            )
+        )
+
+        do {
+            let appended = try await campaignStore.appendRollResolution(
+                batch: [event],
+                expectedSequence: projection.appliedThroughSequence
+            )
+            guard let resolved = appended.first,
+                  case .rollResolved(let payload) = resolved.payload else {
+                throw PlayerSessionModelError.rollPersistenceFailed
+            }
+            try await refreshCanonicalState()
+            return payload
+        } catch let error as PlayerSessionModelError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            do {
+                try await refreshCanonicalState()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw PlayerSessionModelError.rollPersistenceFailed
+            }
+
+            guard let canonicalProjection = projection else {
+                throw PlayerSessionModelError.rollPersistenceFailed
+            }
+            if let canonicalResolution = canonicalProjection.resolvedRolls[rollID] {
+                return canonicalResolution
+            }
+            guard canonicalProjection.pendingRolls[rollID] != nil else {
+                throw PlayerSessionModelError.rollNotPending
+            }
+            throw PlayerSessionModelError.rollPersistenceFailed
+        }
+    }
+
+    private func refreshCanonicalState() async throws {
+        let loadResult = try await projectionLoader.load(campaignID: campaignID)
+        let storedPresentation = try await presentationStore.presentation(
+            for: campaignID
+        )
+        guard let project else { return }
+        projection = loadResult.projection
+        state = Self.makeState(
+            campaignID: campaignID,
+            project: project,
+            projection: loadResult.projection,
             storedPresentation: storedPresentation
         )
     }
@@ -211,11 +322,22 @@ final class PlayerSessionModel {
         let defaultMode: PlayerMode = projection.gmMessages.isEmpty
             ? .visualNovel
             : .transcript
-        let restoredMode = validStoredPresentation?.mode ?? defaultMode
+        let restoredMode: PlayerMode = projection.pendingRolls.isEmpty
+            ? (validStoredPresentation?.mode ?? defaultMode)
+            : .transcript
         let restoredBeat = min(
             max(0, validStoredPresentation?.beatIndex ?? 0),
             max(0, latestMessage.beats.count - 1)
         )
+
+        let pendingRoll = projection.pendingRolls.values.sorted {
+            $0.rollID.uuidString < $1.rollID.uuidString
+        }.first
+        let lastResolvedRoll = projection.latestResolvedRollID
+            .flatMap { projection.resolvedRolls[$0] }
+            ?? (projection.resolvedRolls.count == 1
+                ? projection.resolvedRolls.first?.value
+                : nil)
 
         return PlayerSessionState(
             campaignTitle: projection.campaignTitle ?? project.title,
@@ -229,7 +351,10 @@ final class PlayerSessionModel {
                 GenerationPhase(rawValue: $0.phase.rawValue)
             },
             activeRequestID: projection.activeTurnRequestID?.uuidString,
-            completedRequestIDs: []
+            completedRequestIDs: [],
+            pendingRoll: pendingRoll,
+            resolvedRolls: projection.resolvedRolls,
+            lastResolvedRoll: lastResolvedRoll
         )
     }
 
@@ -300,17 +425,27 @@ final class PlayerSessionModel {
         from payload: GMMessageCommittedPayload,
         actionCount: Int
     ) -> GMMessage {
+        let dialogue = payload.dialogue.map {
+            DialogueBlock(
+                id: $0.id,
+                speaker: $0.speaker,
+                mood: $0.mood,
+                text: $0.text
+            )
+        }
+        let transcript = payload.orderedTranscript?.map {
+            TranscriptBlock(
+                id: $0.id,
+                kind: $0.kind == .narration ? .narration : .dialogue,
+                speaker: $0.speaker,
+                mood: $0.mood,
+                text: $0.text
+            )
+        }
         GMMessage(
             id: payload.messageID,
             prose: payload.narration,
-            dialogue: payload.dialogue.map {
-                DialogueBlock(
-                    id: $0.id,
-                    speaker: $0.speaker,
-                    mood: $0.mood,
-                    text: $0.text
-                )
-            },
+            dialogue: dialogue,
             actionCount: actionCount,
             finalQuestion: payload.finalQuestion,
             beats: payload.beats.map {
@@ -323,7 +458,8 @@ final class PlayerSessionModel {
                     mood: $0.mood,
                     text: $0.text
                 )
-            }
+            },
+            transcript: transcript
         )
     }
 

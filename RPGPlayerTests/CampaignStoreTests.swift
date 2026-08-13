@@ -193,6 +193,91 @@ struct CampaignStoreTests {
     }
 
     @Test
+    func rollResolutionContinuationUsesTheOriginalRequestIDOnce() async throws {
+        let store = try makeStore()
+        let campaignID = try fixtureUUID(405)
+        let requestID = try fixtureUUID(270)
+        let rollID = try fixtureUUID(470)
+        let request = CampaignEvent(
+            id: try fixtureUUID(471),
+            campaignID: campaignID,
+            sequence: 0,
+            requestID: requestID,
+            timestamp: Date(timeIntervalSince1970: 1),
+            schemaVersion: 1,
+            payload: .rollRequested(
+                RollRequestedPayload(
+                    rollID: rollID,
+                    expression: "1d20+4",
+                    prompt: "Cross unseen"
+                )
+            )
+        )
+        let message = CampaignEvent(
+            id: try fixtureUUID(472),
+            campaignID: campaignID,
+            sequence: 0,
+            requestID: requestID,
+            timestamp: Date(timeIntervalSince1970: 2),
+            schemaVersion: 1,
+            payload: .gmMessageCommitted(
+                GMMessageCommittedPayload(
+                    messageID: try fixtureUUID(473),
+                    narration: ["The bridge waits."],
+                    dialogue: [],
+                    beats: [],
+                    finalQuestion: ""
+                )
+            )
+        )
+        _ = try await store.append(
+            batch: [request, message],
+            expectedSequence: 0
+        )
+
+        let resolution = CampaignEvent(
+            id: try fixtureUUID(474),
+            campaignID: campaignID,
+            sequence: 0,
+            requestID: requestID,
+            timestamp: Date(timeIntervalSince1970: 3),
+            schemaVersion: 1,
+            payload: .rollResolved(
+                RollResolvedPayload(
+                    rollID: rollID,
+                    results: [12],
+                    modifier: 4,
+                    total: 16
+                )
+            )
+        )
+        let appended = try await store.appendRollResolution(
+            batch: [resolution],
+            expectedSequence: 2
+        )
+        #expect(appended.count == 1)
+        #expect(appended[0].sequence == 3)
+        #expect(appended[0].requestID == requestID)
+
+        let duplicate = CampaignEvent(
+            id: try fixtureUUID(475),
+            campaignID: campaignID,
+            sequence: 0,
+            requestID: requestID,
+            timestamp: Date(timeIntervalSince1970: 4),
+            schemaVersion: 1,
+            payload: resolution.payload
+        )
+        await expectError(.duplicateRequestID(requestID)) {
+            _ = try await store.appendRollResolution(
+                batch: [duplicate],
+                expectedSequence: 3
+            )
+        }
+        #expect(try await store.latestSequence(for: campaignID) == 3)
+    }
+
+    @Test
     func staleExpectedSequenceRejectsTheWholeBatch() async throws {
         let store = try makeStore()
         let campaignID = try fixtureUUID(5)

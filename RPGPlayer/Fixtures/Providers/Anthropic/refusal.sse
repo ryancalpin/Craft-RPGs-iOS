@@ -1,0 +1,2 @@
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"refusal"}}

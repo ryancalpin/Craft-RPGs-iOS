@@ -1,0 +1,2 @@
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"type":"function_call","item_id":"item-unknown","call_id":"call-unknown","name":"deleteEverything"}}

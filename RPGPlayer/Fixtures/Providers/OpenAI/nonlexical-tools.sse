@@ -1,0 +1,20 @@
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"type":"function_call","item_id":"item-zeta","call_id":"call-zeta","name":"searchRecords"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"type":"function_call","item_id":"item-alpha","call_id":"call-alpha","name":"requestRoll"}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"item-zeta","delta":"{\"query\":\"bell rope\"}"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"item-alpha","delta":"{\"expression\":\"1d20+4\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","item_id":"item-zeta","arguments":"{\"query\":\"bell rope\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","item_id":"item-alpha","arguments":"{\"expression\":\"1d20+4\"}"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"status":"completed"}}

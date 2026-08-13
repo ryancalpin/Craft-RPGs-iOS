@@ -62,6 +62,7 @@ final class RedactingURLProtocol: URLProtocol, @unchecked Sendable {
         let path: String
         let queryItemNames: [String]
         let bodyByteCount: Int?
+        let bodyData: Data?
         let headers: [String: String]
     }
 
@@ -257,6 +258,10 @@ final class RedactingURLProtocol: URLProtocol, @unchecked Sendable {
         }
 
         await Self.registry.recordStarted(tag: tag)
+        await Self.registry.recordDiagnosticSnapshot(
+            tag: tag,
+            snapshot: Self.diagnosticSnapshot(for: request)
+        )
         guard Task.isCancelled == false,
               isActive else { return }
         guard let response = Self.response(
@@ -374,6 +379,7 @@ final class RedactingURLProtocol: URLProtocol, @unchecked Sendable {
                 .map(\.name)
                 .sorted() ?? [],
             bodyByteCount: request.httpBody?.count,
+            bodyData: request.httpBody,
             headers: NetworkDiagnosticRedactor().redactedHeaders(
                 request.allHTTPHeaderFields ?? [:]
             )
@@ -419,6 +425,15 @@ private actor RedactingURLProtocolRegistry {
         for waiter in waiters {
             waiter.resume()
         }
+    }
+
+    func recordDiagnosticSnapshot(
+        tag: UUID,
+        snapshot: RedactingURLProtocol.DiagnosticSnapshot
+    ) {
+        guard var entry = entries[tag] else { return }
+        entry.diagnosticSnapshot = snapshot
+        entries[tag] = entry
     }
 
     func recordHeldOpen(tag: UUID) {

@@ -31,13 +31,36 @@ public actor SwiftDataCampaignStore: CampaignStore {
         }
     }
 
-    /// A request ID identifies one atomic append operation. Phase 3 must place
-    /// the submitted action and its terminal/final events in the same batch;
-    /// every event in that batch intentionally carries the same request ID.
     public func append(
         batch: [CampaignEvent],
         assets: [ImportedAsset],
         expectedSequence: Int64
+    ) throws -> [CampaignEvent] {
+        try appendInternal(
+            batch: batch,
+            assets: assets,
+            expectedSequence: expectedSequence,
+            allowsRollResolutionContinuation: false
+        )
+    }
+
+    public func appendRollResolution(
+        batch: [CampaignEvent],
+        expectedSequence: Int64
+    ) throws -> [CampaignEvent] {
+        try appendInternal(
+            batch: batch,
+            assets: [],
+            expectedSequence: expectedSequence,
+            allowsRollResolutionContinuation: true
+        )
+    }
+
+    private func appendInternal(
+        batch: [CampaignEvent],
+        assets: [ImportedAsset],
+        expectedSequence: Int64,
+        allowsRollResolutionContinuation: Bool
     ) throws -> [CampaignEvent] {
         guard let first = batch.first else {
             return []
@@ -82,7 +105,12 @@ public actor SwiftDataCampaignStore: CampaignStore {
                 let existing = try eventRecords(for: first.campaignID)
                 if existing.contains(where: {
                     $0.requestID == first.requestID
-                }) {
+                }) && (allowsRollResolutionContinuation == false
+                    || isRollResolutionContinuation(
+                        batch: batch,
+                        requestID: first.requestID,
+                        existing: existing
+                    ) == false) {
                     throw CampaignStoreError.duplicateRequestID(first.requestID)
                 }
 
@@ -139,6 +167,55 @@ public actor SwiftDataCampaignStore: CampaignStore {
             throw CampaignStoreError.persistenceFailure
         }
         return appended
+    }
+
+    private func isRollResolutionContinuation(
+        batch: [CampaignEvent],
+        requestID: UUID,
+        existing: [CampaignEventRecord]
+    ) -> Bool {
+        guard batch.count == 1,
+              batch[0].requestID == requestID,
+              case .rollResolved(let resolution) = batch[0].payload
+        else {
+            return false
+        }
+
+        let lineage = existing
+            .filter { $0.requestID == requestID }
+            .compactMap { try? decodeEvent($0) }
+        guard let request = lineage.compactMap({ event -> RollRequestedPayload? in
+            guard case .rollRequested(let request) = event.payload,
+                  request.rollID == resolution.rollID else {
+                return nil
+            }
+            return request
+        }).first,
+        let expression = try? DiceExpression(request.expression),
+        resolution.modifier == expression.modifier,
+        resolution.results.count == expression.diceCount,
+        resolution.results.allSatisfy({ (1...expression.sides).contains($0) }),
+        resolution.total == resolution.results.reduce(expression.modifier, +),
+        (DiceExpression.minimumTotal...DiceExpression.maximumTotal)
+            .contains(resolution.total) else {
+            return false
+        }
+        guard lineage.contains(where: {
+            if case .rollResolved(let existingResolution) = $0.payload {
+                return existingResolution.rollID == resolution.rollID
+            }
+            return false
+        }) == false else {
+            return false
+        }
+        return lineage.contains(where: {
+            switch $0.payload {
+            case .turnCancelled, .turnFailed:
+                true
+            default:
+                false
+            }
+        }) == false
     }
 
     public func events(

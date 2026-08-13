@@ -319,6 +319,7 @@ public struct VersionedTurnEnvelope: Codable, Equatable, Sendable {
     public enum CodingError: Error, Equatable, Sendable {
         case unsupportedSchemaVersion(Int)
         case payloadTooLarge(maximumBytes: Int, actualBytes: Int)
+        case malformedEncoding
     }
 
     public static let maximumEncodedBytes = 8_000_000
@@ -368,7 +369,12 @@ public struct VersionedTurnEnvelope: Codable, Equatable, Sendable {
     public func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(self)
+        let data: Data
+        do {
+            data = try encoder.encode(self)
+        } catch {
+            throw CodingError.malformedEncoding
+        }
         guard data.count <= Self.maximumEncodedBytes else {
             throw CodingError.payloadTooLarge(
                 maximumBytes: Self.maximumEncodedBytes,
