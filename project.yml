@@ -38,6 +38,7 @@ targets:
             CFBundleIconName: AppIcon
             CFBundleIconIsPrerendered: false
         NSSupportsLiveActivities: true
+        CFBundleVersion: "3"
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
             CFBundleURLName: com.calpinlabs.rpgplayer.turn
@@ -74,6 +75,7 @@ targets:
       path: Config/TurnActivityExtension-Info.plist
       properties:
         CFBundleDisplayName: RPGPlayer Turn
+        CFBundleVersion: "3"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
