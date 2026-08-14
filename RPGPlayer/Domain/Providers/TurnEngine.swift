@@ -104,6 +104,9 @@ public enum TurnPresentationEvent: Sendable, Equatable {
     }
 }
 
+public typealias TurnPresentationObserver =
+    @Sendable (TurnPresentationEvent) -> Void
+
 public enum TurnEngineResult: Equatable, Sendable {
     case committed
     case cancelled
@@ -179,15 +182,39 @@ public actor TurnEngine {
     /// `run`, `execute`, and `finish` intentionally share one idempotent
     /// boundary so callers cannot create a second canonical completion.
     public func run(_ request: TurnRequest) async -> TurnEngineExecution {
-        await perform(request)
+        await perform(request, observer: nil)
+    }
+
+    /// Delivers sanitized presentation events as the provider stream advances.
+    /// The observer is called before the engine proceeds to the next step,
+    /// including before the durable append for a completed envelope.
+    public func run(
+        _ request: TurnRequest,
+        onPresentation observer: @escaping TurnPresentationObserver
+    ) async -> TurnEngineExecution {
+        await perform(request, observer: observer)
     }
 
     public func execute(_ request: TurnRequest) async -> TurnEngineExecution {
-        await perform(request)
+        await perform(request, observer: nil)
+    }
+
+    public func execute(
+        _ request: TurnRequest,
+        onPresentation observer: @escaping TurnPresentationObserver
+    ) async -> TurnEngineExecution {
+        await perform(request, observer: observer)
     }
 
     public func finish(_ request: TurnRequest) async -> TurnEngineExecution {
-        await perform(request)
+        await perform(request, observer: nil)
+    }
+
+    public func finish(
+        _ request: TurnRequest,
+        onPresentation observer: @escaping TurnPresentationObserver
+    ) async -> TurnEngineExecution {
+        await perform(request, observer: observer)
     }
 
     @discardableResult
@@ -236,41 +263,50 @@ public actor TurnEngine {
         }
     }
 
-    private func perform(_ request: TurnRequest) async -> TurnEngineExecution {
+    private func perform(
+        _ request: TurnRequest,
+        observer: TurnPresentationObserver?
+    ) async -> TurnEngineExecution {
         guard request.campaignID == validationContext.campaignID else {
             return failure(
                 .campaignOwnershipMismatch,
-                presentation: [.failure(.campaignOwnershipMismatch)]
+                presentation: [.failure(.campaignOwnershipMismatch)],
+                observer: observer
             )
         }
         if states[request.requestID] == .canonicalFinal {
             return failure(
                 .canonicalFinalAlreadyExists,
-                presentation: [.failure(.canonicalFinalAlreadyExists)]
+                presentation: [.failure(.canonicalFinalAlreadyExists)],
+                observer: observer
             )
         }
         if externallyCommittedRequestIDs.contains(request.requestID) {
             return failure(
                 .canonicalFinalAlreadyExists,
-                presentation: [.failure(.canonicalFinalAlreadyExists)]
+                presentation: [.failure(.canonicalFinalAlreadyExists)],
+                observer: observer
             )
         }
         if states[request.requestID] == .active {
             return failure(
                 .alreadyRunning,
-                presentation: [.failure(.alreadyRunning)]
+                presentation: [.failure(.alreadyRunning)],
+                observer: observer
             )
         }
         if states[request.requestID] == .committing {
             return failure(
                 .alreadyRunning,
-                presentation: [.failure(.alreadyRunning)]
+                presentation: [.failure(.alreadyRunning)],
+                observer: observer
             )
         }
         if states[request.requestID] == .cancelled {
             return failure(
                 .canonicalFinalAlreadyExists,
-                presentation: [.failure(.canonicalFinalAlreadyExists)]
+                presentation: [.failure(.canonicalFinalAlreadyExists)],
+                observer: observer
             )
         }
 
@@ -285,29 +321,49 @@ public actor TurnEngine {
                 return adopt(existing, for: request.requestID)
             }
             if cancellationRequests.contains(request.requestID) {
-                return await persistCancellation(request, presentation: [])
+                return await persistCancellation(
+                    request,
+                    presentation: [],
+                    observer: observer
+                )
             }
             try Task.checkCancellation()
         } catch is CancellationError {
-            return await persistCancellation(request, presentation: [])
+            return await persistCancellation(
+                request,
+                presentation: [],
+                observer: observer
+            )
         } catch {
             if cancellationRequests.contains(request.requestID) {
-                return await persistCancellation(request, presentation: [])
+                return await persistCancellation(
+                    request,
+                    presentation: [],
+                    observer: observer
+                )
             }
             states.removeValue(forKey: request.requestID)
             return failure(
                 .persistenceFailure,
-                presentation: [.failure(.persistenceFailure)]
+                presentation: [.failure(.persistenceFailure)],
+                observer: observer
             )
         }
 
-        var presentation: [TurnPresentationEvent] = [
-            .status(.queued),
-            .status(.readingWorld),
-            .status(.planning),
-            .status(.writingScene),
-            .status(.voicing)
-        ]
+        var presentation: [TurnPresentationEvent] = []
+        for phase in [
+            CampaignGenerationPhase.queued,
+            .readingWorld,
+            .planning,
+            .writingScene,
+            .voicing
+        ] {
+            recordPresentation(
+                .status(phase),
+                in: &presentation,
+                observer: observer
+            )
+        }
         var streamState = StreamState()
 
         do {
@@ -316,7 +372,8 @@ public actor TurnEngine {
             try Task.checkCancellation()
             if let cancellation = await persistCancellationIfRequestedAfterStreamSetup(
                 request,
-                presentation: presentation
+                presentation: presentation,
+                observer: observer
             ) {
                 return cancellation
             }
@@ -330,7 +387,8 @@ public actor TurnEngine {
                         request: request,
                         subturnIndex: subturnIndex,
                         state: &streamState,
-                        presentation: &presentation
+                        presentation: &presentation,
+                        observer: observer
                     )
                 }
                 guard streamState.finalEnvelope == nil,
@@ -355,7 +413,8 @@ public actor TurnEngine {
                 try Task.checkCancellation()
                 if let cancellation = await persistCancellationIfRequestedAfterStreamSetup(
                     request,
-                    presentation: presentation
+                    presentation: presentation,
+                    observer: observer
                 ) {
                     return cancellation
                 }
@@ -379,7 +438,11 @@ public actor TurnEngine {
             } catch {
                 throw TurnEngineError.invalidEnvelope(.unsafeText)
             }
-            presentation.append(.completed(validatedEnvelope))
+            recordPresentation(
+                .completed(validatedEnvelope),
+                in: &presentation,
+                observer: observer
+            )
 
             let batch: [CampaignEvent]
             do {
@@ -400,7 +463,8 @@ public actor TurnEngine {
                 guard cancellationRequests.contains(request.requestID) == false else {
                     return await persistCancellation(
                         request,
-                        presentation: presentation
+                        presentation: presentation,
+                        observer: observer
                     )
                 }
                 states[request.requestID] = .committing
@@ -450,31 +514,49 @@ public actor TurnEngine {
             if error == .cancelled || cancellationRequests.contains(request.requestID) {
                 return await persistCancellation(
                     request,
-                    presentation: presentation
+                    presentation: presentation,
+                    observer: observer
                 )
             }
             states.removeValue(forKey: request.requestID)
-            presentation.append(.failure(error))
+            recordPresentation(
+                .failure(error),
+                in: &presentation,
+                observer: observer
+            )
             return TurnEngineExecution(result: .failed(error), presentation: presentation)
         } catch is CancellationError {
-            return await persistCancellation(request, presentation: presentation)
+            return await persistCancellation(
+                request,
+                presentation: presentation,
+                observer: observer
+            )
         } catch let error as ProviderError {
             if error == .cancelled || cancellationRequests.contains(request.requestID) {
                 return await persistCancellation(
                     request,
-                    presentation: presentation
+                    presentation: presentation,
+                    observer: observer
                 )
             }
             states.removeValue(forKey: request.requestID)
             let engineError = TurnEngineError.provider(error)
-            presentation.append(.failure(engineError))
+            recordPresentation(
+                .failure(engineError),
+                in: &presentation,
+                observer: observer
+            )
             return TurnEngineExecution(result: .failed(engineError), presentation: presentation)
         } catch {
             states.removeValue(forKey: request.requestID)
             // A provider-facing stream error is not a clean EOF. Keep the
             // clean-EOF error reserved for normal stream exhaustion below.
             let engineError = TurnEngineError.provider(.malformedResponse)
-            presentation.append(.failure(engineError))
+            recordPresentation(
+                .failure(engineError),
+                in: &presentation,
+                observer: observer
+            )
             return TurnEngineExecution(result: .failed(engineError), presentation: presentation)
         }
     }
@@ -484,7 +566,8 @@ public actor TurnEngine {
         request: TurnRequest,
         subturnIndex: Int,
         state: inout StreamState,
-        presentation: inout [TurnPresentationEvent]
+        presentation: inout [TurnPresentationEvent],
+        observer: TurnPresentationObserver?
     ) throws {
         guard presentation.count < 4_096 else {
             throw TurnEngineError.invalidEnvelope(.tooManyItems)
@@ -499,7 +582,11 @@ public actor TurnEngine {
             guard state.proseBytes <= 2_000_000 else {
                 throw TurnEngineError.invalidEnvelope(.textTooLarge)
             }
-            presentation.append(.prose(text))
+            recordPresentation(
+                .prose(text),
+                in: &presentation,
+                observer: observer
+            )
 
         case .toolCallStarted(let callID, let toolName):
             guard isSafeIdentifier(callID), callID.isEmpty == false,
@@ -517,8 +604,13 @@ public actor TurnEngine {
             state.startedToolsBySubturn[subturnIndex, default: []].insert(
                 trackingCallID
             )
-            presentation.append(
-                .toolStarted(callID: callID, toolName: sanitizedToolName(toolName))
+            recordPresentation(
+                .toolStarted(
+                    callID: callID,
+                    toolName: sanitizedToolName(toolName)
+                ),
+                in: &presentation,
+                observer: observer
             )
 
         case .toolCallArgumentFragment(let callID, let fragment):
@@ -561,12 +653,14 @@ public actor TurnEngine {
             } catch {
                 throw TurnEngineError.invalidTool(.malformedArguments)
             }
-            presentation.append(
+            recordPresentation(
                 .toolResult(
                     callID: callID,
                     toolName: sanitizedToolName(toolName),
                     sanitizedStatus: sanitizedStatus(proposal.status)
-                )
+                ),
+                in: &presentation,
+                observer: observer
             )
             state.toolResultItems.append(
                 continuationItem(
@@ -601,6 +695,9 @@ public actor TurnEngine {
             guard allStartedToolsHaveValidatedResults(state) else {
                 throw TurnEngineError.invalidTool(.malformedArguments)
             }
+            guard envelope.requestID == request.requestID else {
+                throw TurnEngineError.requestIDMismatch
+            }
             state.finalEnvelope = envelope
 
         case .finished(.requiresToolResults):
@@ -622,11 +719,16 @@ public actor TurnEngine {
 
     private func persistCancellation(
         _ request: TurnRequest,
-        presentation: [TurnPresentationEvent]
+        presentation: [TurnPresentationEvent],
+        observer: TurnPresentationObserver? = nil
     ) async -> TurnEngineExecution {
         guard states[request.requestID] != .canonicalFinal,
               states[request.requestID] != .committing else {
-            return failure(.canonicalFinalAlreadyExists, presentation: presentation)
+            return failure(
+                .canonicalFinalAlreadyExists,
+                presentation: presentation,
+                observer: observer
+            )
         }
         do {
             let batch = try builder.buildCancellation(
@@ -642,7 +744,11 @@ public actor TurnEngine {
             states[request.requestID] = .cancelled
             cancellationRequests.remove(request.requestID)
             var resultPresentation = presentation
-            resultPresentation.append(.failure(.cancelled))
+            recordPresentation(
+                .failure(.cancelled),
+                in: &resultPresentation,
+                observer: observer
+            )
             return TurnEngineExecution(
                 result: .cancelled,
                 presentation: resultPresentation,
@@ -657,7 +763,11 @@ public actor TurnEngine {
                 } catch {
                     states.removeValue(forKey: request.requestID)
                     var resultPresentation = presentation
-                    resultPresentation.append(.failure(.persistenceFailure))
+                    recordPresentation(
+                        .failure(.persistenceFailure),
+                        in: &resultPresentation,
+                        observer: observer
+                    )
                     return TurnEngineExecution(
                         result: .failed(.persistenceFailure),
                         presentation: resultPresentation
@@ -665,7 +775,11 @@ public actor TurnEngine {
                 }
                 states.removeValue(forKey: request.requestID)
                 var resultPresentation = presentation
-                resultPresentation.append(.failure(.persistenceFailure))
+                recordPresentation(
+                    .failure(.persistenceFailure),
+                    in: &resultPresentation,
+                    observer: observer
+                )
                 return TurnEngineExecution(
                     result: .failed(.persistenceFailure),
                     presentation: resultPresentation
@@ -680,7 +794,11 @@ public actor TurnEngine {
                 } catch {
                     states.removeValue(forKey: request.requestID)
                     var resultPresentation = presentation
-                    resultPresentation.append(.failure(.persistenceFailure))
+                    recordPresentation(
+                        .failure(.persistenceFailure),
+                        in: &resultPresentation,
+                        observer: observer
+                    )
                     return TurnEngineExecution(
                         result: .failed(.persistenceFailure),
                         presentation: resultPresentation
@@ -688,7 +806,11 @@ public actor TurnEngine {
                 }
                 states.removeValue(forKey: request.requestID)
                 var resultPresentation = presentation
-                resultPresentation.append(.failure(.sequenceConflict))
+                recordPresentation(
+                    .failure(.sequenceConflict),
+                    in: &resultPresentation,
+                    observer: observer
+                )
                 return TurnEngineExecution(
                     result: .failed(.sequenceConflict),
                     presentation: resultPresentation
@@ -696,7 +818,11 @@ public actor TurnEngine {
             }
             states.removeValue(forKey: request.requestID)
             var resultPresentation = presentation
-            resultPresentation.append(.failure(.persistenceFailure))
+            recordPresentation(
+                .failure(.persistenceFailure),
+                in: &resultPresentation,
+                observer: observer
+            )
             return TurnEngineExecution(
                 result: .failed(.persistenceFailure),
                 presentation: resultPresentation
@@ -704,7 +830,11 @@ public actor TurnEngine {
         } catch {
             states.removeValue(forKey: request.requestID)
             var resultPresentation = presentation
-            resultPresentation.append(.failure(.persistenceFailure))
+            recordPresentation(
+                .failure(.persistenceFailure),
+                in: &resultPresentation,
+                observer: observer
+            )
             return TurnEngineExecution(
                 result: .failed(.persistenceFailure),
                 presentation: resultPresentation
@@ -714,13 +844,18 @@ public actor TurnEngine {
 
     private func persistCancellationIfRequestedAfterStreamSetup(
         _ request: TurnRequest,
-        presentation: [TurnPresentationEvent]
+        presentation: [TurnPresentationEvent],
+        observer: TurnPresentationObserver? = nil
     ) async -> TurnEngineExecution? {
         guard cancellationRequests.contains(request.requestID) else {
             return nil
         }
         await provider.cancel(requestID: request.requestID)
-        return await persistCancellation(request, presentation: presentation)
+        return await persistCancellation(
+            request,
+            presentation: presentation,
+            observer: observer
+        )
     }
 
     private func continuationRequest(
@@ -767,7 +902,8 @@ public actor TurnEngine {
             campaignID: request.campaignID,
             expectedSequence: request.expectedSequence,
             action: request.action,
-            assembly: continuationAssembly
+            assembly: continuationAssembly,
+            modelID: request.modelID
         )
     }
 
@@ -1025,16 +1161,33 @@ public actor TurnEngine {
 
     private func failure(
         _ error: TurnEngineError,
-        presentation: [TurnPresentationEvent]
+        presentation: [TurnPresentationEvent],
+        observer: TurnPresentationObserver? = nil
     ) -> TurnEngineExecution {
         var resultPresentation = presentation
-        if resultPresentation.last != .failure(error) {
-            resultPresentation.append(.failure(error))
+        let terminal = TurnPresentationEvent.failure(error)
+        if resultPresentation.last != terminal {
+            recordPresentation(
+                terminal,
+                in: &resultPresentation,
+                observer: observer
+            )
+        } else {
+            observer?(terminal)
         }
         return TurnEngineExecution(
             result: .failed(error),
             presentation: resultPresentation
         )
+    }
+
+    private func recordPresentation(
+        _ event: TurnPresentationEvent,
+        in presentation: inout [TurnPresentationEvent],
+        observer: TurnPresentationObserver?
+    ) {
+        presentation.append(event)
+        observer?(event)
     }
 
     private func adopt(

@@ -93,16 +93,17 @@ public actor AnthropicProvider: AIProvider {
 
     private static func requestBody(for request: TurnRequest) throws -> Data {
         let context = ProviderAdapterSupport.context(for: request)
-        let body = AnthropicWire.Request(model: fallbackModels[0].id, maxTokens: fallbackModels[0].maximumOutputTokens, system: "Return only the versioned RPGPlayer turn envelope.\n\(context)", messages: [AnthropicWire.Message(role: "user", content: [AnthropicWire.TextContent(text: request.action.text)])], tools: tools, stream: true, outputConfig: AnthropicWire.OutputConfig(format: AnthropicWire.OutputFormat(schema: envelopeSchema)))
+        let model = request.modelID ?? fallbackModels[0].id
+        let maximumOutputTokens = fallbackModels.first(where: { $0.id == model })?.maximumOutputTokens ?? fallbackModels[0].maximumOutputTokens
+        let body = AnthropicWire.Request(model: model, maxTokens: maximumOutputTokens, system: "Return only the versioned RPGPlayer turn envelope.\n\(context)", messages: [AnthropicWire.Message(role: "user", content: [AnthropicWire.TextContent(text: request.action.text)])], tools: tools, stream: true, outputConfig: AnthropicWire.OutputConfig(format: AnthropicWire.OutputFormat(schema: envelopeSchema)))
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(body)
     }
 
     private static let defaultReference = try! ProviderCredentialReference(providerID: .anthropic)
-    private static let fallbackModels: [ProviderModel] = [
-        try! ProviderModel(providerID: .anthropic, id: "claude-opus-5", displayName: "Claude Opus 5", contextWindowTokens: 1_000_000, maximumOutputTokens: 128_000, supportsTools: true, supportsStructuredOutput: true),
-        try! ProviderModel(providerID: .anthropic, id: "claude-sonnet-5", displayName: "Claude Sonnet 5", contextWindowTokens: 1_000_000, maximumOutputTokens: 128_000, supportsTools: true, supportsStructuredOutput: true)
-    ]
+    private static let fallbackModels = CuratedProviderModelCatalog.models(
+        for: .anthropic
+    )
 
     private static func model(for model: AnthropicWire.Model) -> ProviderModel? {
         try? ProviderModel(providerID: .anthropic, id: model.id, displayName: model.displayName ?? model.id, contextWindowTokens: 200_000, maximumOutputTokens: 64_000, supportsTools: true, supportsStructuredOutput: true)
@@ -267,7 +268,7 @@ private actor AnthropicStreamDriver {
     func cancel() async { cancelled = true; currentPull?.cancel(); await closeTransport() }
 
     private func pullFrame() async throws -> ServerSentEvent? {
-        let task = Task { [weak self] in guard let self else { return nil }; return try await self.pullFromIterator() }
+        let task: Task<ServerSentEvent?, Error> = Task { [weak self] in guard let self else { return nil }; return try await self.pullFromIterator() }
         currentPull = task; defer { currentPull = nil }; return try await task.value
     }
 

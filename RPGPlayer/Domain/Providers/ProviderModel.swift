@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ProviderID: String, Codable, CaseIterable, Sendable {
+public enum ProviderID: String, Codable, CaseIterable, Hashable, Sendable {
     case openAI
     case openRouter
     case anthropic

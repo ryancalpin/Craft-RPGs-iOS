@@ -38,7 +38,10 @@ struct DiceRollerTests {
         let maximum = try DiceExpression("100d1000+100000")
         #expect(maximum.diceCount == 100)
         #expect(maximum.sides == 1_000)
-        #expect(maximum.total <= DiceExpression.maximumTotal)
+        #expect(
+            maximum.diceCount * maximum.sides + maximum.modifier
+                == DiceExpression.maximumTotal
+        )
 
         for invalid in [
             "0d20", "101d20", "1d0", "1d1001", "1d20+100001",

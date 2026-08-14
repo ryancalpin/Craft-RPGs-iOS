@@ -16,13 +16,6 @@ struct TurnContextAssemblerTests {
         )
         let projection = CampaignProjection(
             campaignID: try uuid("22222222-2222-4222-8222-222222222222"),
-            pendingDecision: "What do you do?",
-            records: ["record-zebra": ["present": .bool(true)]],
-            currentScene: SceneChangedPayload(
-                sceneID: "record-scene",
-                title: "The Quay",
-                summary: "Rain gathers on the stones."
-            ),
             submittedActions: [
                 ProjectedPlayerAction(
                     requestID: try uuid("11111111-1111-4111-8111-111111111111"),
@@ -37,7 +30,14 @@ struct TurnContextAssemblerTests {
                     beats: [],
                     finalQuestion: "What do you do?"
                 )
-            ]
+            ],
+            pendingDecision: "What do you do?",
+            records: ["record-zebra": ["present": .bool(true)]],
+            currentScene: SceneChangedPayload(
+                sceneID: "record-scene",
+                title: "The Quay",
+                summary: "Rain gathers on the stones."
+            )
         )
         let source = TurnContextSource(
             project: project,
@@ -462,6 +462,42 @@ struct TurnContextAssemblerTests {
     }
 
     @Test
+    func orderedTranscriptUsesNarratorWhenDialogueSpeakerIsMissing() throws {
+        let message = GMMessageCommittedPayload(
+            messageID: try uuid("33333333-3333-4333-8333-333333333333"),
+            narration: [],
+            dialogue: [],
+            orderedTranscript: [
+                CampaignTranscriptBlock(
+                    id: try uuid("44444444-4444-4444-8444-444444444444"),
+                    kind: .dialogue,
+                    text: "A voice answers from the fog."
+                )
+            ],
+            beats: [],
+            finalQuestion: ""
+        )
+        let assembly = TurnContextAssembler().assemble(
+            source: TurnContextSource(
+                project: makeProject(records: []),
+                projection: CampaignProjection(
+                    campaignID: try uuid("22222222-2222-4222-8222-222222222222"),
+                    gmMessages: [message]
+                ),
+                safetySystemContract: "Safety contract."
+            ),
+            model: try model(context: 20_000, output: 1_000)
+        )
+        let transcript = try #require(
+            assembly.context.sections.first { $0.kind == .recentTranscript }
+        )
+
+        #expect(transcript.items.map(\.text) == [
+            "Narrator: A voice answers from the fog."
+        ])
+    }
+
+    @Test
     func budgetCountsSerializedItemMetadataAndCanOmitLargeNamedItems() throws {
         let item = ContextSection.Item(
             id: String(repeating: "i", count: 300),
@@ -710,7 +746,7 @@ struct TurnContextAssemblerTests {
                 $0.reason == .discardedDraftExcluded
                     && $0.itemID == "[redacted]"
                     && $0.itemName == "[redacted]"
-            }.count == 3
+                }.count == 4
         )
     }
 
@@ -915,7 +951,6 @@ struct TurnContextAssemblerTests {
             decoding: try JSONEncoder().encode(assembly.context.sections),
             as: UTF8.self
         )
-
         #expect(encoded.contains("file:///Users/private/record.txt") == false)
         #expect(encoded.contains("sk-abcdefgh123456") == false)
         #expect(encoded.contains("benign local-key value") == false)
@@ -972,7 +1007,6 @@ struct TurnContextAssemblerTests {
             decoding: try JSONEncoder().encode(assembly.context.sections),
             as: UTF8.self
         )
-
         #expect(encoded.contains("sk-zyxwvuts987654") == false)
         #expect(encoded.contains("file:///Users/private/projection.txt") == false)
         #expect(encoded.contains("benign projection-token value") == false)

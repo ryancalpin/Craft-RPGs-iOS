@@ -28,6 +28,9 @@ public struct TurnRequest: Codable, Equatable, Sendable {
     public let expectedSequence: Int64
     public let action: PlayerAction
     public let context: TurnContext
+    /// The model selected by Settings for this provider invocation. Older
+    /// persisted requests may omit it; adapters then use their curated default.
+    public let modelID: String?
     /// The assembly inputs used to produce `context.contextHash`.
     ///
     /// Older callers may omit this for requests that do not cross a native
@@ -41,7 +44,8 @@ public struct TurnRequest: Codable, Equatable, Sendable {
         expectedSequence: Int64,
         action: PlayerAction,
         context: TurnContext,
-        contextAssembly: TurnContextAssembly? = nil
+        contextAssembly: TurnContextAssembly? = nil,
+        modelID: String? = nil
     ) {
         self.requestID = requestID
         self.campaignID = campaignID
@@ -49,6 +53,7 @@ public struct TurnRequest: Codable, Equatable, Sendable {
         self.action = action
         self.context = context
         self.contextAssembly = contextAssembly
+        self.modelID = modelID
     }
 
     public init(
@@ -56,7 +61,8 @@ public struct TurnRequest: Codable, Equatable, Sendable {
         campaignID: UUID,
         expectedSequence: Int64,
         action: PlayerAction,
-        assembly: TurnContextAssembly
+        assembly: TurnContextAssembly,
+        modelID: String? = nil
     ) {
         self.init(
             requestID: requestID,
@@ -64,7 +70,8 @@ public struct TurnRequest: Codable, Equatable, Sendable {
             expectedSequence: expectedSequence,
             action: action,
             context: assembly.context,
-            contextAssembly: assembly
+            contextAssembly: assembly,
+            modelID: modelID
         )
     }
 }

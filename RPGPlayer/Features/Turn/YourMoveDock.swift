@@ -18,7 +18,7 @@ struct YourMoveDock: View {
             .background {
                 PlayerSemanticSurface(
                     shape: Capsule(),
-                    style: .material(panelOverlayOpacity: 0.58)
+                    style: .material(panelOverlayOpacity: 0.72)
                 )
             }
             .contentShape(Capsule())
@@ -55,23 +55,26 @@ struct YourMoveDock: View {
         } else {
             HStack(spacing: 14) {
                 Image(systemName: "checklist")
-                    .font(.body.weight(.semibold))
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(PlayerTheme.accentSoft)
                     .frame(width: 44, height: 44)
                     .background {
                         Circle()
-                            .fill(Color.white.opacity(0.08))
+                            .fill(PlayerTheme.accent.opacity(0.14))
                             .overlay {
-                                Circle()
-                                    .stroke(PlayerTheme.panelStroke, lineWidth: 1)
+                                Circle().stroke(
+                                    PlayerTheme.accent.opacity(0.32),
+                                    lineWidth: 1
+                                )
                             }
                     }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Your Move")
-                        .font(.headline)
+                        .font(.system(.headline, design: .rounded).weight(.bold))
                     Text("The GM is waiting — tap to view \(choiceCount) choices")
                         .font(.caption)
-                        .foregroundStyle(PlayerTheme.secondaryText)
+                        .foregroundStyle(PlayerTheme.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -79,7 +82,7 @@ struct YourMoveDock: View {
 
                 Image(systemName: "chevron.up")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PlayerTheme.secondaryText)
+                    .foregroundStyle(PlayerTheme.accentSoft)
             }
         }
     }

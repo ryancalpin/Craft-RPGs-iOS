@@ -153,6 +153,10 @@ final class PlayerSessionModel {
         )
     }
 
+    func refresh() async throws {
+        try await refreshCanonicalState()
+    }
+
     func resolveRoll(
         rollID: UUID,
         roller: DiceRoller = DiceRoller()
@@ -227,7 +231,7 @@ final class PlayerSessionModel {
                 throw PlayerSessionModelError.rollPersistenceFailed
             }
 
-            guard let canonicalProjection = projection else {
+            guard let canonicalProjection = self.projection else {
                 throw PlayerSessionModelError.rollPersistenceFailed
             }
             if let canonicalResolution = canonicalProjection.resolvedRolls[rollID] {
@@ -442,7 +446,7 @@ final class PlayerSessionModel {
                 text: $0.text
             )
         }
-        GMMessage(
+        return GMMessage(
             id: payload.messageID,
             prose: payload.narration,
             dialogue: dialogue,

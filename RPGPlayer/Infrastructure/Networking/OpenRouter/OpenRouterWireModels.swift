@@ -22,12 +22,12 @@ enum OpenRouterWire {
         let content: String
     }
 
-    struct Tool: Encodable {
+    struct Tool: Encodable, Sendable {
         let type = "function"
         let function: Function
     }
 
-    struct Function: Encodable {
+    struct Function: Encodable, Sendable {
         let name: String
         let description: String
         let parameters: ObjectSchema
@@ -44,7 +44,7 @@ enum OpenRouterWire {
         }
     }
 
-    struct JSONSchema: Encodable {
+    struct JSONSchema: Encodable, Sendable {
         let name = "rpgplayer_turn_envelope"
         let strict = true
         let schema: ObjectSchema
@@ -56,14 +56,14 @@ enum OpenRouterWire {
         }
     }
 
-    struct ObjectSchema: Encodable {
+    struct ObjectSchema: Encodable, Sendable {
         let type = "object"
         let properties: [String: PropertySchema]
         let required: [String]
         let additionalProperties = false
     }
 
-    struct PropertySchema: Encodable {
+    final class PropertySchema: Encodable, Sendable {
         let type: String
         let description: String
         let properties: [String: PropertySchema]?

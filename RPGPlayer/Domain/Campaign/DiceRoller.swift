@@ -36,12 +36,8 @@ public struct DiceRoller: Sendable {
         var results: [Int] = []
         results.reserveCapacity(expression.diceCount)
         for _ in 0..<expression.diceCount {
-            results.append(
-                Int.random(
-                    in: 1...expression.sides,
-                    using: &generator
-                )
-            )
+            let raw = generator.next()
+            results.append(Int(raw % UInt64(expression.sides)) + 1)
         }
         return DiceRoll(expression: expression, results: results)
     }

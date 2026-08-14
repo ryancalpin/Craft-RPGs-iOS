@@ -5,6 +5,64 @@ import Testing
 
 struct CampaignStoreTests {
     @Test
+    func creatingCampaignPersistsPlayableProjectAndInitialEvent() async throws {
+        let store = try makeStore()
+        let supportDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "RPGPlayerCampaignCreation-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+
+        let creator = CampaignCreator(
+            store: store,
+            campaignDirectory: CampaignDirectory(
+                applicationSupportDirectory: supportDirectory
+            )
+        )
+        let campaignID = try await creator.create(
+            NewCampaignDraft(
+                title: "The Lantern Coast",
+                premise: "A coast of old lights and unfinished maps.",
+                playerCharacter: "Mara Venn"
+            )
+        )
+
+        let projectURL = CampaignDirectory(
+            applicationSupportDirectory: supportDirectory
+        )
+        .campaignURL(for: campaignID)
+        .appendingPathComponent("normalized-project.json")
+        let project = try JSONDecoder().decode(
+            NormalizedProject.self,
+            from: Data(contentsOf: projectURL)
+        )
+
+        #expect(project.title == "The Lantern Coast")
+        #expect(project.summary == "A coast of old lights and unfinished maps.")
+        #expect(project.currentSceneRecordID != nil)
+        #expect(project.playerCharacterRecordID != nil)
+        #expect(project.records.count == 2)
+
+        let events = try await store.events(
+            for: campaignID,
+            after: 0,
+            limit: 10
+        )
+        #expect(events.count == 1)
+        guard case .campaignImported(let payload) = events.first?.payload else {
+            Issue.record("A new campaign must begin with a campaignImported event")
+            return
+        }
+        #expect(payload.campaignTitle == "The Lantern Coast")
+        #expect(payload.projectID == project.id)
+        #expect(
+            payload.extensionPayload["creationSource"]
+                == JSONValue.string("native")
+        )
+    }
+
+    @Test
     func campaignCatalogIsEmptyBeforeAnyImport() async throws {
         let store = try makeStore()
 

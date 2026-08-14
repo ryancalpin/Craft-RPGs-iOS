@@ -285,13 +285,17 @@ public struct TurnContextAssembler: Sendable {
             kind: ContextSection.Kind,
             itemID: String? = nil,
             itemName: String? = nil,
-            reason: ContextOmission.Reason
+            reason: ContextOmission.Reason,
+            preserveItemID: Bool = false
         ) {
             candidateKinds.insert(kind)
             omissions.append(
                 ContextOmission(
                     kind: kind,
-                    itemID: omissionSafeMetadata(itemID) ?? itemID.map { _ in "[redacted]" },
+                    itemID: preserveItemID
+                        ? itemID
+                        : omissionSafeMetadata(itemID)
+                            ?? itemID.map { _ in "[redacted]" },
                     itemName: omissionSafeMetadata(itemName) ?? itemName.map { _ in "[redacted]" },
                     reason: reason
                 )
@@ -675,24 +679,53 @@ public struct TurnContextAssembler: Sendable {
         into build: inout CandidateBuild
     ) {
         let record = source.project.records.first { $0.id == id }
+        let projectionValues = source.projection.records[id] ?? [:]
         let safeID = safeMetadata(id)
         let name = record.flatMap { recordName($0) }
         var values: [String: JSONValue] = [:]
+        var unsafeFields: [(String, ContextOmission.Reason, Bool)] = []
         if let record {
             for field in record.fields.sorted(by: { $0.id < $1.id }) {
                 guard isDraftKey(field.id) == false,
                       containsDraftData(field.value) == false,
                       containsDraftPayload(field.extensionPayload) == false
                 else { continue }
+                if let reason = unsafeReason(for: field.value, fieldID: field.id) {
+                    unsafeFields.append((
+                        field.id,
+                        reason,
+                        containsProviderTokenKey(field.value)
+                    ))
+                    continue
+                }
                 values[field.id] = field.value
             }
         }
-        for fieldID in (source.projection.records[id] ?? [:]).keys.sorted() {
-            guard let value = source.projection.records[id]?[fieldID],
+        for fieldID in projectionValues.keys.sorted() {
+            guard let value = projectionValues[fieldID],
                   isDraftKey(fieldID) == false,
                   containsDraftData(value) == false
             else { continue }
+            if let reason = unsafeReason(for: value, fieldID: fieldID) {
+                unsafeFields.append((
+                    fieldID,
+                    reason,
+                    containsProviderTokenKey(value)
+                ))
+                continue
+            }
             values[fieldID] = value
+        }
+        for (fieldID, reason, preserveItemID) in unsafeFields {
+            build.mark(
+                kind: kind,
+                itemID: preserveItemID
+                    ? "\(id).\(fieldID)"
+                    : omissionMetadata("\(id).\(fieldID)"),
+                itemName: omissionMetadata(fieldID),
+                reason: reason,
+                preserveItemID: preserveItemID
+            )
         }
         var lines: [String] = []
         if let record {
@@ -776,14 +809,29 @@ public struct TurnContextAssembler: Sendable {
         _ value: JSONValue,
         fieldID: String
     ) throws -> String? {
+        if containsLocalFileURL(fieldID) || containsLocalFileURL(value) {
+            throw UnsafeTextReason.localFileURL
+        }
         if sensitiveFieldName(fieldID) {
             throw UnsafeTextReason.secret
         }
         if containsSecret(value) { throw UnsafeTextReason.secret }
-        if containsLocalFileURL(value) {
-            throw UnsafeTextReason.localFileURL
-        }
         return jsonText(value)
+    }
+
+    private func unsafeReason(
+        for value: JSONValue,
+        fieldID: String
+    ) -> ContextOmission.Reason? {
+        if containsLocalFileURL(fieldID) || containsLocalFileURL(value) {
+            return .localFileURLExcluded
+        }
+        if sensitiveFieldName(fieldID)
+            || containsProviderTokenKey(value)
+            || containsSecret(value) {
+            return .secretExcluded
+        }
+        return nil
     }
 
     private func containsSecret(_ text: String) -> Bool {
@@ -796,12 +844,35 @@ public struct TurnContextAssembler: Sendable {
         case .string(let value): containsSecret(value)
         case .array(let values): values.contains(where: containsSecret)
         case .object(let values):
-            values.contains {
-                sensitiveFieldName($0.key)
-                    || containsSecret($0.key)
-                    || containsSecret($0.value)
+            values.contains { key, nestedValue in
+                sensitiveFieldName(key)
+                    || isProviderToken(key)
+                    || containsSecret(key)
+                    || containsSecret(nestedValue)
             }
         case .integer, .number, .bool, .null: false
+        }
+    }
+
+    private func containsProviderTokenKey(_ value: JSONValue) -> Bool {
+        switch value {
+        case .array(let values):
+            return values.contains { containsProviderTokenKey($0) }
+        case .object(let values):
+            for key in values.keys {
+                let lowercasedKey = key.lowercased()
+                if lowercasedKey.hasPrefix("sk-")
+                    || lowercasedKey.hasPrefix("aiza") {
+                    return true
+                }
+                if let nestedValue = values[key],
+                   containsProviderTokenKey(nestedValue) {
+                    return true
+                }
+            }
+            return false
+        case .string, .integer, .number, .bool, .null:
+            return false
         }
     }
 
@@ -823,24 +894,31 @@ public struct TurnContextAssembler: Sendable {
     }
 
     private func sensitiveFieldName(_ fieldID: String) -> Bool {
-        isUnsafeMetadataKey(fieldID)
+        return isUnsafeMetadataKey(fieldID)
+            || isProviderToken(fieldID)
+    }
+
+    private func isProviderToken(_ value: String) -> Bool {
+        let normalized = normalizedMetadataKey(value)
+        return normalized.hasPrefix("sk") && normalized.count >= 10
+            || normalized.hasPrefix("aiza") && normalized.count >= 12
     }
 
     private func jsonText(_ value: JSONValue) -> String {
         switch value {
-        case .string(let value): value
-        case .integer(let value): String(value)
-        case .number(let value): String(value)
-        case .bool(let value): String(value)
+        case .string(let value): return value
+        case .integer(let value): return String(value)
+        case .number(let value): return String(value)
+        case .bool(let value): return String(value)
         case .array(let values):
-            "[" + values.map(jsonText).joined(separator: ", ") + "]"
+            return "[" + values.map(jsonText).joined(separator: ", ") + "]"
         case .object(let values):
-            let pairs = values.keys.sorted().compactMap { key in
+            let pairs = values.keys.sorted().compactMap { key -> String? in
                 guard let value = values[key] else { return nil }
                 return "\(key): \(jsonText(value))"
             }
             return "{" + pairs.joined(separator: ", ") + "}"
-        case .null: "null"
+        case .null: return "null"
         }
     }
 
@@ -848,7 +926,7 @@ public struct TurnContextAssembler: Sendable {
         var parts = if let orderedTranscript = message.orderedTranscript {
             orderedTranscript.map { block in
                 if block.kind == .dialogue {
-                    return "\(block.speaker ?? \"Narrator\"): \(block.text)"
+                    return "\(block.speaker ?? "Narrator"): \(block.text)"
                 }
                 return block.text
             }
@@ -940,7 +1018,7 @@ public struct TurnContextAssembler: Sendable {
         budget: ContextBudget,
         metadata: ContextAssemblyMetadata
     ) -> ContextHash {
-        var encoder = JSONEncoder()
+        let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let payload = CanonicalHashPayload(
             sections: sections,

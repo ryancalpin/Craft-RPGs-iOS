@@ -4,7 +4,7 @@ import Testing
 
 @Suite(.serialized)
 struct AnthropicProviderContractTests {
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func messagesFixtureNormalizesStructuredTextAndUsage() async throws {
         let provider = try await makeProvider(fixture: "successful-text.sse")
         let events = try await collect(
@@ -22,7 +22,8 @@ struct AnthropicProviderContractTests {
             Issue.record("Expected a completed normalized envelope")
             return
         }
-        #expect(envelope.requestID == try uuid("11111111-1111-4111-8111-111111111111"))
+        let expectedRequestID = try uuid("11111111-1111-4111-8111-111111111111")
+        #expect(envelope.requestID == expectedRequestID)
     }
 
     @Test
@@ -65,7 +66,7 @@ struct AnthropicProviderContractTests {
             ["type": "sceneChange", "data": "{\"sceneRecordID\":\"scene-1\",\"title\":\"Bell Tower\",\"summary\":\"Rain falls.\"}"],
             ["type": "clockUpdate", "data": "{\"clockRecordID\":\"clock-1\",\"current\":2,\"maximum\":6}"],
             ["type": "voiceSuggestion", "data": "{\"characterRecordID\":\"guide\",\"styleDescription\":\"Warm and cautious\"}"],
-            ["type": "assetAttachment", "data": "{\"assetID\":\"asset-1\",\"targetRecordID\":\"scene-1\",\"fieldID\":\"portrait\"}]
+            ["type": "assetAttachment", "data": "{\"assetID\":\"asset-1\",\"targetRecordID\":\"scene-1\",\"fieldID\":\"portrait\"}"]
         ]
         let root: [String: Any] = [
             "schemaVersion": 1,
@@ -160,7 +161,7 @@ struct AnthropicProviderContractTests {
         }
     }
 
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func messagesModelDiscoveryCancellationNormalizesToCancelled() async throws {
         let provider = try await makeProvider(
             fixture: "models.json",
@@ -217,7 +218,7 @@ struct AnthropicProviderContractTests {
         #expect(await provider.registration.stopCount() == 1)
     }
 
-    @Test(.timeLimit(.seconds(5)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
     func messagesFixturesNormalizeTerminalFailures(fixture: String) async throws {
         let provider = try await makeProvider(fixture: fixture)
         let expected: ProviderError = fixture == "refusal.sse" ? .safetyRefusal : .malformedResponse
@@ -287,8 +288,9 @@ struct AnthropicProviderContractTests {
             .deletingLastPathComponent()
             .appendingPathComponent("RPGPlayer/Fixtures/Providers/Anthropic")
             .appendingPathComponent(fixture)
+        let fixtureData = try Data(contentsOf: fixtureURL)
         let registration = await RedactingURLProtocol.register(
-            scenario: RedactingURLProtocol.Scenario(response: response, steps: steps ?? [.chunk(try Data(contentsOf: fixtureURL))]),
+            scenario: RedactingURLProtocol.Scenario(response: response, steps: steps ?? [.chunk(fixtureData)]),
             for: URLRequest(url: url)
         )
         let configuration = URLSessionConfiguration.ephemeral

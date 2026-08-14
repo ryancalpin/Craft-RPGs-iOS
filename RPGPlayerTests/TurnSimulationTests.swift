@@ -7,7 +7,7 @@ final class TurnSimulationTests: XCTestCase {
         var phases: [GenerationPhase] = []
         var messages: [GMMessage] = []
 
-        for try await event in service.events(
+        for try await event in await service.events(
             for: PlayerSubmission(action: "Wait", additionalContext: "")
         ) {
             if case .phase(let phase) = event {
@@ -39,7 +39,8 @@ final class TurnSimulationTests: XCTestCase {
         )
         var steps: [String] = []
 
-        for try await event in service.events(for: submission) {
+        let events = await service.events(for: submission)
+        for try await event in events {
             if case .step(let step) = event {
                 steps.append(step)
             }

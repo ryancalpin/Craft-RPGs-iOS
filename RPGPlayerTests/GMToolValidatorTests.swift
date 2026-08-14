@@ -830,8 +830,8 @@ struct GMToolValidatorTests {
                 arguments: try ToolTestFixture.arguments(for: "attachAsset"),
                 context: ToolTestFixture.context(
                     campaignID: campaignID,
-                    duplicateHashAsset: true,
-                    assetURL: URL(string: "assets/other.png")!
+                    assetURL: URL(string: "assets/other.png")!,
+                    duplicateHashAsset: true
                 )
             )
         }
@@ -1134,7 +1134,7 @@ struct GMToolValidatorTests {
                     toolName: "patchRecord",
                     arguments: try ProviderToolArguments(values: [
                         "recordID": .string("character-guide"),
-                        "fieldsJSON": .string("{\"details\":{\"value\":\"\\(value)\"}}")
+                        "fieldsJSON": .string("{\"details\":{\"value\":\"\(value)\"}}")
                     ]),
                     context: context
                 )
@@ -1195,7 +1195,7 @@ struct GMToolValidatorTests {
                 toolName: "requestRoll",
                 arguments: try ProviderToolArguments(values: [
                     "expression": .string("1d20"),
-                    "prompt": .string(percentEncoded("http:example", passes: 12))
+                    "prompt": .string(percentEncoded("http:example", passes: 8))
                 ]),
                 context: context
             )

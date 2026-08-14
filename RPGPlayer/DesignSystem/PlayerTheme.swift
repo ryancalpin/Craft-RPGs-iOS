@@ -1,16 +1,36 @@
 import SwiftUI
 
 enum PlayerTheme {
-    static let canvas = Color(red: 0.025, green: 0.04, blue: 0.065)
-    static let panel = Color(red: 0.045, green: 0.075, blue: 0.12).opacity(0.92)
-    static let opaquePanel = Color(red: 0.041, green: 0.067, blue: 0.105)
-    static let panelStroke = Color.white.opacity(0.12)
-    static let primaryText = Color.white.opacity(0.94)
-    static let secondaryText = Color.white.opacity(0.62)
-    static let accent = Color(red: 0.88, green: 0.66, blue: 0.19)
+    static let canvas = Color(red: 0.018, green: 0.028, blue: 0.052)
+    static let canvasRaised = Color(red: 0.035, green: 0.051, blue: 0.086)
+    static let canvasMidnight = Color(red: 0.022, green: 0.045, blue: 0.090)
+    static let panel = Color(red: 0.050, green: 0.073, blue: 0.116).opacity(0.90)
+    static let opaquePanel = Color(red: 0.036, green: 0.054, blue: 0.092)
+    static let panelStroke = Color.white.opacity(0.14)
+    static let primaryText = Color.white.opacity(0.96)
+    static let secondaryText = Color(red: 0.73, green: 0.77, blue: 0.86)
+    static let tertiaryText = Color(red: 0.49, green: 0.55, blue: 0.67)
+    static let accent = Color(red: 0.93, green: 0.70, blue: 0.28)
+    static let accentSoft = Color(red: 0.98, green: 0.80, blue: 0.42)
+    static let accentCool = Color(red: 0.33, green: 0.67, blue: 0.96)
+    static let success = Color(red: 0.39, green: 0.84, blue: 0.68)
     static let pageInset: CGFloat = 16
     static let controlHeight: CGFloat = 52
     static let panelRadius: CGFloat = 22
+    static let cardRadius: CGFloat = 26
+    static let smallRadius: CGFloat = 14
+
+    static let sceneGradient = LinearGradient(
+        colors: [canvasMidnight, canvasRaised, canvas],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let accentGradient = LinearGradient(
+        colors: [accentSoft, accent, Color(red: 0.74, green: 0.40, blue: 0.14)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
 }
 
 private struct PlayerReduceMotionOverrideKey: EnvironmentKey {
@@ -151,5 +171,49 @@ struct PlayerSemanticSurface<SurfaceShape: InsettableShape>: View {
                 )
             }
         }
+        .shadow(
+            color: Color.black.opacity(0.24),
+            radius: 18,
+            y: 8
+        )
+    }
+}
+
+struct PlayerEyebrow: View {
+    let text: String
+    var tint: Color = PlayerTheme.accent
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Capsule()
+                .fill(tint)
+                .frame(width: 18, height: 3)
+            Text(text.uppercased())
+                .font(.caption2.weight(.bold))
+                .tracking(1.6)
+                .foregroundStyle(PlayerTheme.secondaryText)
+        }
+    }
+}
+
+struct PlayerStatusPill: View {
+    let text: String
+    let systemName: String
+    var tint: Color = PlayerTheme.success
+
+    var body: some View {
+        Label(text, systemImage: systemName)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 11)
+            .frame(minHeight: 30)
+            .background {
+                Capsule()
+                    .fill(tint.opacity(0.13))
+                    .overlay {
+                        Capsule()
+                            .stroke(tint.opacity(0.28), lineWidth: 1)
+                    }
+            }
     }
 }

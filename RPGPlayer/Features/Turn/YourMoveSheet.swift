@@ -89,26 +89,7 @@ struct YourMoveSheet: View {
             HStack {
                 Spacer()
                 Button(action: confirm) {
-                    HStack(spacing: 6) {
-                        Text("Confirm")
-                        Image(systemName: "return")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.black.opacity(0.82))
-                    .fixedSize(horizontal: true, vertical: true)
-                    .frame(
-                        minWidth: PlayerLayoutMetrics.turnConfirmChromeSize.width,
-                        minHeight: PlayerLayoutMetrics.turnConfirmChromeSize.height
-                    )
-                    .background {
-                        Capsule()
-                            .fill(Color.white.opacity(resolvedAction == nil ? 0.46 : 0.92))
-                    }
-                    .frame(
-                        minWidth: PlayerLayoutMetrics.turnConfirmChromeSize.width,
-                        minHeight: PlayerLayoutMetrics.turnConfirmHitHeight
-                    )
-                    .contentShape(Rectangle())
+                    confirmLabel
                 }
                 .buttonStyle(.plain)
                 .disabled(resolvedAction == nil)
@@ -138,12 +119,44 @@ struct YourMoveSheet: View {
         }
     }
 
+    private var confirmLabel: some View {
+        HStack(spacing: 6) {
+            Text("Confirm")
+            Image(systemName: "return")
+        }
+        .font(.subheadline.weight(.bold))
+        .foregroundStyle(Color.black.opacity(0.82))
+        .fixedSize(horizontal: true, vertical: true)
+        .frame(
+            minWidth: PlayerLayoutMetrics.turnConfirmChromeSize.width,
+            minHeight: PlayerLayoutMetrics.turnConfirmChromeSize.height
+        )
+        .background {
+            Capsule().fill(confirmBackground)
+        }
+        .frame(
+            minWidth: PlayerLayoutMetrics.turnConfirmChromeSize.width,
+            minHeight: PlayerLayoutMetrics.turnConfirmHitHeight
+        )
+        .contentShape(Rectangle())
+    }
+
+    private var confirmBackground: AnyShapeStyle {
+        if resolvedAction == nil {
+            return AnyShapeStyle(Color.white.opacity(0.28))
+        }
+        return AnyShapeStyle(PlayerTheme.accentGradient)
+    }
+
     private var sheetHeader: some View {
         HStack(alignment: .center) {
-            Text("YOUR MOVE")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PlayerTheme.primaryText)
-                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 2) {
+                PlayerEyebrow(text: "Next choice")
+                Text("Your move")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(PlayerTheme.primaryText)
+            }
+            .accessibilityAddTraits(.isHeader)
             Spacer()
             Button(action: cancel) {
                 Image(systemName: "chevron.down")
@@ -169,7 +182,7 @@ struct YourMoveSheet: View {
                 HStack(spacing: 12) {
                     ChoiceIndicator(selected: customSelected)
                     Text("Type something…")
-                        .font(.headline)
+                        .font(.system(.headline, design: .rounded).weight(.semibold))
                         .foregroundStyle(
                             customSelected
                                 ? PlayerTheme.primaryText
@@ -213,10 +226,15 @@ struct YourMoveSheet: View {
         }
         .background {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.10))
+                .fill(customSelected ? PlayerTheme.accent.opacity(0.10) : Color.black.opacity(0.10))
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(PlayerTheme.panelStroke, lineWidth: 1)
+                        .stroke(
+                            customSelected
+                                ? PlayerTheme.accent.opacity(0.54)
+                                : PlayerTheme.panelStroke,
+                            lineWidth: customSelected ? 1.5 : 1
+                        )
                 }
         }
     }
@@ -246,7 +264,7 @@ struct YourMoveSheet: View {
         .padding(14)
         .background {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.10))
+                .fill(Color.black.opacity(0.14))
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(PlayerTheme.panelStroke, lineWidth: 1)
@@ -302,12 +320,18 @@ private struct MoveChoiceRow: View {
             )
             .background {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(selected ? PlayerTheme.accent.opacity(0.12) : Color.black.opacity(0.10))
+                    .fill(
+                        selected
+                            ? PlayerTheme.accent.opacity(0.16)
+                            : Color.black.opacity(0.14)
+                    )
                     .overlay {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(
-                                selected ? PlayerTheme.accent.opacity(0.72) : PlayerTheme.panelStroke,
-                                lineWidth: 1
+                                selected
+                                    ? PlayerTheme.accent.opacity(0.84)
+                                    : Color.white.opacity(0.11),
+                                lineWidth: selected ? 1.5 : 1
                             )
                     }
             }

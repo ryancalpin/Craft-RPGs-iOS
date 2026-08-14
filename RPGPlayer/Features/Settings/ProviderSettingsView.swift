@@ -258,7 +258,12 @@ struct ProviderSettingsView: View {
 
     init(
         store: any ProviderCredentialSettingsStore,
-        validator: any ProviderCredentialValidator
+        validator: any ProviderCredentialValidator,
+        modelRoutingStore: (any ModelRoutingSettingsStore)? = nil,
+        providerModelCatalog: (any ProviderModelCatalogProviding)? = nil,
+        imageRoutingStore: (any ImageRoutingSettingsStore)? = nil,
+        imageProviderCatalog: (any ImageProviderCatalogProviding)? = nil,
+        voiceSettings: VoiceSettingsDependencies? = nil
     ) {
         _model = State(
             initialValue: ProviderSettingsModel(
@@ -266,10 +271,69 @@ struct ProviderSettingsView: View {
                 validator: validator
             )
         )
+        self.modelRoutingStore = modelRoutingStore
+        self.providerModelCatalog = providerModelCatalog
+        self.imageRoutingStore = imageRoutingStore
+        self.imageProviderCatalog = imageProviderCatalog
+        self.voiceSettings = voiceSettings
     }
+
+    private let modelRoutingStore: (any ModelRoutingSettingsStore)?
+    private let providerModelCatalog: (any ProviderModelCatalogProviding)?
+    private let imageRoutingStore: (any ImageRoutingSettingsStore)?
+    private let imageProviderCatalog: (any ImageProviderCatalogProviding)?
+    private let voiceSettings: VoiceSettingsDependencies?
 
     var body: some View {
         Form {
+            if let modelRoutingStore,
+               let providerModelCatalog,
+               let imageRoutingStore,
+               let imageProviderCatalog {
+                Section("Capabilities") {
+                    NavigationLink {
+                        AIModelSettingsView(
+                            store: modelRoutingStore,
+                            catalog: providerModelCatalog
+                        )
+                    } label: {
+                        Label("AI Models", systemImage: "cpu")
+                    }
+                    .accessibilityIdentifier("aiModelsSettingsLink")
+
+                    NavigationLink {
+                        ImageGenerationSettingsView(
+                            store: imageRoutingStore,
+                            catalog: imageProviderCatalog
+                        )
+                    } label: {
+                        Label("Images", systemImage: "photo.on.rectangle")
+                    }
+                    .accessibilityIdentifier("imageSettingsLink")
+
+                    if let voiceSettings {
+                        NavigationLink {
+                            VoiceSettingsView(dependencies: voiceSettings)
+                        } label: {
+                            Label("Voice", systemImage: "waveform")
+                        }
+                        .accessibilityIdentifier("voiceSettingsLink")
+                    }
+                }
+                .listRowBackground(PlayerTheme.opaquePanel)
+            }
+
+            Section {
+                Text(
+                    "Keys are stored in this device’s Keychain and are never included in campaign recovery bundles."
+                )
+                .font(.footnote)
+                .foregroundStyle(PlayerTheme.secondaryText)
+            } header: {
+                Text("Provider Keys")
+            }
+            .listRowBackground(PlayerTheme.opaquePanel)
+
             ForEach(model.states) { state in
                 providerSection(state)
             }
@@ -280,7 +344,7 @@ struct ProviderSettingsView: View {
         .background(PlayerTheme.canvas)
         .foregroundStyle(PlayerTheme.primaryText)
         .tint(PlayerTheme.accent)
-        .navigationTitle("Provider Settings")
+        .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("providerSettingsView")
         .task {

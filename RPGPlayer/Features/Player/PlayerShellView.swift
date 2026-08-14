@@ -20,6 +20,9 @@ struct PlayerShellView: View {
     @State private var lastPresentedRollRequest: RollRequestedPayload?
     private let sessionModel: PlayerSessionModel?
     private let turnStreaming: (any TurnStreaming)?
+    private let turnActivityCoordinator: TurnActivityCoordinator?
+    private let turnBackgroundExecutionController: TurnBackgroundExecutionController?
+    private let narrationPlaybackCoordinator: NarrationPlaybackCoordinator?
     private let exposesTurnContextForTesting: Bool
     private let forcedDynamicTypeSize: DynamicTypeSize?
     private let forcesReduceMotionForTesting: Bool
@@ -40,6 +43,9 @@ struct PlayerShellView: View {
     ) {
         sessionModel = nil
         turnStreaming = SimulatedTurnStreaming(delay: .milliseconds(1_000))
+        turnActivityCoordinator = nil
+        turnBackgroundExecutionController = nil
+        narrationPlaybackCoordinator = nil
         self.campaignDataContext = campaignDataContext
         exitCampaign = {}
         self.campaignDeleted = campaignDeleted
@@ -91,6 +97,10 @@ struct PlayerShellView: View {
     init(
         model: PlayerSessionModel,
         campaignDataContext: CampaignDataContext,
+        turnStreaming: (any TurnStreaming)? = nil,
+        turnActivityCoordinator: TurnActivityCoordinator? = nil,
+        turnBackgroundExecutionController: TurnBackgroundExecutionController? = nil,
+        narrationPlaybackCoordinator: NarrationPlaybackCoordinator? = nil,
         exitCampaign: @escaping @MainActor () -> Void,
         campaignDeleted: @escaping @MainActor () -> Void
     ) {
@@ -98,7 +108,10 @@ struct PlayerShellView: View {
             preconditionFailure("A live player session must be loaded before display")
         }
         sessionModel = model
-        turnStreaming = nil
+        self.turnStreaming = turnStreaming
+        self.turnActivityCoordinator = turnActivityCoordinator
+        self.turnBackgroundExecutionController = turnBackgroundExecutionController
+        self.narrationPlaybackCoordinator = narrationPlaybackCoordinator
         self.campaignDataContext = campaignDataContext
         self.exitCampaign = exitCampaign
         self.campaignDeleted = campaignDeleted
@@ -225,7 +238,10 @@ struct PlayerShellView: View {
                             project: sessionModel?.project,
                             exitCampaign: sessionModel == nil
                                 ? closeDrawer
-                                : exitCampaign
+                                : exitCampaign,
+                            refreshProject: refreshCampaign,
+                            campaignDataContext: campaignDataContext,
+                            campaignDeleted: campaignDeleted,
                         )
                             .frame(
                                 width: PlayerLayoutMetrics.projectDrawerWidth(
@@ -250,7 +266,8 @@ struct PlayerShellView: View {
                             close: closeDrawer,
                             campaignDataContext: campaignDataContext,
                             campaignDeleted: campaignDeleted,
-                            liveContext: liveCampaignOverview
+                            liveContext: liveCampaignOverview,
+                            liveAssistantContext: liveCampaignAssistantContext
                         )
                             .frame(
                                 width: PlayerLayoutMetrics.overviewDrawerWidth(
@@ -353,6 +370,20 @@ struct PlayerShellView: View {
         )
     }
 
+    private var liveCampaignAssistantContext: LiveCampaignAssistantContext? {
+        guard let sessionModel,
+              let project = sessionModel.project,
+              let projection = sessionModel.projection else {
+            return nil
+        }
+        return LiveCampaignAssistantContext(
+            campaignTitle: state.campaignTitle,
+            project: project,
+            projection: projection,
+            importedAssets: []
+        )
+    }
+
     @ViewBuilder
     private func presentationContent(
         availableHeight: CGFloat,
@@ -413,7 +444,8 @@ struct PlayerShellView: View {
                     previous: { send(.previousBeat) },
                     next: { send(.nextBeat) },
                     close: { send(.setMode(.transcript)) },
-                    finish: { send(.finishVisualNovel) }
+                    finish: { send(.finishVisualNovel) },
+                    narrate: narrateCurrentBeat
                 )
             }
         }
@@ -516,9 +548,22 @@ struct PlayerShellView: View {
         pendingSubmission = submission
         generationSteps = []
         send(.generationStarted(requestID: requestID))
+        let activityCoordinator = turnActivityCoordinator
+        let campaignID = sessionModel?.campaignID
+        let campaignTitle = state.campaignTitle
+        turnBackgroundExecutionController?.begin()
         generationTask = Task { @MainActor in
+            defer { turnBackgroundExecutionController?.end() }
+            if let campaignID {
+                await activityCoordinator?.start(
+                    campaignID: campaignID,
+                    campaignTitle: campaignTitle,
+                    turnID: requestID
+                )
+            }
             do {
-                for try await event in turnStreaming.events(for: submission) {
+                let events = await turnStreaming.events(for: submission)
+                for try await event in events {
                     guard !Task.isCancelled,
                           state.activeRequestID == requestID else {
                         return
@@ -527,15 +572,41 @@ struct PlayerShellView: View {
                     switch event {
                     case .phase(let phase):
                         send(.generationPhaseChanged(phase))
+                        await activityCoordinator?.update(
+                            phase: phase,
+                            status: phase.displayText
+                        )
                     case .step(let step):
                         generationSteps.append(step)
-                    case .completed(let message):
-                        send(
-                            .generationCompleted(
-                                requestID: requestID,
-                                message: message
-                            )
+                        await activityCoordinator?.update(
+                            phase: state.generation ?? .queued,
+                            status: step
                         )
+                    case .completed(let message):
+                        if let sessionModel {
+                            try await sessionModel.refresh()
+                        } else {
+                            send(
+                                .generationCompleted(
+                                    requestID: requestID,
+                                    message: message
+                                )
+                            )
+                        }
+                        if SpeechPlaybackPreferences.automaticallyPlayNarration,
+                           let campaignID {
+                            let assignment = sessionModel?.projection?
+                                .voiceAssignments["narrator"]
+                            narrationPlaybackCoordinator?.play(
+                                text: message.transcript
+                                    .map(\.text)
+                                    .joined(separator: "\n\n"),
+                                campaignID: campaignID,
+                                providerID: assignment?.providerID,
+                                voiceID: assignment?.voiceID
+                            )
+                        }
+                        await activityCoordinator?.finish()
                         pendingSubmission = nil
                         generationSteps = []
                         generationTask = nil
@@ -548,6 +619,10 @@ struct PlayerShellView: View {
                 guard state.activeRequestID == requestID else { return }
                 pendingSubmission = nil
                 generationTask = nil
+                await activityCoordinator?.finish(
+                    phase: .needsAttention,
+                    status: "Turn failed"
+                )
                 send(.generationFailed)
             }
         }
@@ -557,8 +632,37 @@ struct PlayerShellView: View {
         guard state.activeRequestID != nil else { return }
         generationTask?.cancel()
         generationTask = nil
+        if let turnStreaming {
+            Task { await turnStreaming.cancel() }
+        }
+        Task { await turnActivityCoordinator?.cancel() }
+        turnBackgroundExecutionController?.end()
         pendingSubmission = nil
         send(.generationFailed)
+    }
+
+    private func refreshCampaign() {
+        guard let sessionModel else { return }
+        Task { @MainActor in
+            try? await sessionModel.refresh()
+        }
+    }
+
+    private func narrateCurrentBeat() {
+        guard let sessionModel,
+              state.latestMessage.beats.indices.contains(state.beatIndex)
+        else {
+            return
+        }
+        let campaignID = sessionModel.campaignID
+        let beat = state.latestMessage.beats[state.beatIndex]
+        let assignment = sessionModel.projection?.voiceAssignments["narrator"]
+        narrationPlaybackCoordinator?.play(
+            text: beat.text,
+            campaignID: campaignID,
+            providerID: assignment?.providerID,
+            voiceID: assignment?.voiceID
+        )
     }
 
     private func resolveRoll(
@@ -797,27 +901,58 @@ private struct SceneCanvasView: View {
 
             LinearGradient(
                 colors: [
-                    Color(red: 0.04, green: 0.10, blue: 0.17),
-                    Color(red: 0.10, green: 0.12, blue: 0.20),
-                    Color(red: 0.02, green: 0.035, blue: 0.06)
+                    Color(red: 0.045, green: 0.12, blue: 0.23),
+                    Color(red: 0.09, green: 0.10, blue: 0.19),
+                    Color(red: 0.018, green: 0.028, blue: 0.055)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             RadialGradient(
-                colors: [PlayerTheme.accent.opacity(0.24), .clear],
-                center: UnitPoint(x: 0.72, y: 0.30),
-                startRadius: 10,
-                endRadius: 280
+                colors: [
+                    PlayerTheme.accentSoft.opacity(0.20),
+                    PlayerTheme.accentCool.opacity(0.07),
+                    .clear
+                ],
+                center: UnitPoint(x: 0.76, y: 0.24),
+                startRadius: 8,
+                endRadius: 330
             )
+
+            RadialGradient(
+                colors: [Color.black.opacity(0.04), Color.black.opacity(0.52)],
+                center: .center,
+                startRadius: 80,
+                endRadius: 620
+            )
+
+            Image(systemName: "moon.stars.fill")
+                .font(.system(size: 40, weight: .thin))
+                .foregroundStyle(Color.white.opacity(0.13))
+                .offset(x: 112, y: -174)
 
             Image(systemName: "mountain.2.fill")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.black.opacity(0.34))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.18),
+                            Color.black.opacity(0.70)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .frame(maxWidth: .infinity)
-                .offset(y: 176)
+                .offset(y: 190)
+
+            LinearGradient(
+                colors: [.clear, Color.black.opacity(0.60)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Campaign scene")

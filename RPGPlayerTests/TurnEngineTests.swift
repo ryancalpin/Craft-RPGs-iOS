@@ -857,6 +857,50 @@ struct TurnEngineTests {
     }
 
     @Test
+    func presentationObserverReceivesCompletionBeforeDurableAppendFinishes() async throws {
+        let request = try Fixture.request()
+        let provider = ScriptedProvider(events: [
+            .textDelta("The bell answers."),
+            .finished(.completed(Fixture.envelope(requestID: request.requestID)))
+        ])
+        let store = BarrierCampaignStore()
+        let engine = TurnEngine(
+            provider: provider,
+            store: store,
+            validationContext: Fixture.validationContext(campaignID: request.campaignID)
+        )
+        let (presentationStream, presentationContinuation) =
+            AsyncStream<TurnPresentationEvent>.makeStream()
+
+        let task = Task {
+            await engine.run(request) { event in
+                presentationContinuation.yield(event)
+                if case .completed = event {
+                    presentationContinuation.finish()
+                }
+            }
+        }
+
+        var observed: [TurnPresentationEvent] = []
+        for await event in presentationStream {
+            observed.append(event)
+        }
+
+        #expect(observed.contains(.prose("The bell answers.")))
+        #expect(observed.contains(.completed(
+            VersionedTurnEnvelope(envelope: Fixture.envelope(requestID: request.requestID))
+        )))
+        await store.waitUntilAppendStarted()
+        #expect(await store.appendCount == 0)
+
+        await store.releaseAppend()
+        let execution = await task.value
+        #expect(execution.result == .committed)
+        #expect(observed == execution.presentation)
+        #expect(await store.appendCount == 1)
+    }
+
+    @Test
     func builderPersistsEveryAdvertisedMutationBeforeTerminalMessage() throws {
         let request = try Fixture.request()
         let rollID = try #require(UUID(uuidString: "00000000-0000-4000-8000-000000000777"))
@@ -903,7 +947,10 @@ struct TurnEngineTests {
         )
         let batch = try TurnEventBuilder(
             idGenerator: Fixture.idGenerator()
-        ).build(request: request, envelope: envelope)
+        ).build(
+            request: request,
+            envelope: VersionedTurnEnvelope(envelope: envelope)
+        )
 
         #expect(batch.contains { event in
             if case .voiceSuggestionProposed(let payload) = event.payload {

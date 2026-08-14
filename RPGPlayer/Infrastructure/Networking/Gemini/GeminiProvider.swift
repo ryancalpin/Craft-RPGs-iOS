@@ -53,7 +53,7 @@ public actor GeminiProvider: AIProvider {
     public func streamTurn(_ request: TurnRequest) async throws -> AsyncThrowingStream<ProviderStreamEvent, Error> {
         let secret = try await credential()
         if let previous = activeStreams.removeValue(forKey: request.requestID) { await previous.cancel() }
-        var urlRequest = makeRequest(path: "models/\(Self.fallbackModels[0].id):streamGenerateContent")
+        var urlRequest = makeRequest(path: "models/\(request.modelID ?? Self.fallbackModels[0].id):streamGenerateContent")
         authenticate(secret, request: &urlRequest)
         urlRequest.httpBody = try Self.requestBody(for: request)
         let driver = GeminiStreamDriver(
@@ -113,10 +113,9 @@ public actor GeminiProvider: AIProvider {
     }
 
     private static let defaultReference = try! ProviderCredentialReference(providerID: .gemini)
-    private static let fallbackModels: [ProviderModel] = [
-        try! ProviderModel(providerID: .gemini, id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash", contextWindowTokens: 1_048_576, maximumOutputTokens: 65_536, supportsTools: true, supportsStructuredOutput: true),
-        try! ProviderModel(providerID: .gemini, id: "gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash-Lite", contextWindowTokens: 1_048_576, maximumOutputTokens: 65_536, supportsTools: true, supportsStructuredOutput: true)
-    ]
+    private static let fallbackModels = CuratedProviderModelCatalog.models(
+        for: .gemini
+    )
 
     private static func model(for model: GeminiWire.Model) -> ProviderModel? {
         let id = model.name.hasPrefix("models/") ? String(model.name.dropFirst("models/".count)) : model.name
@@ -296,7 +295,7 @@ private actor GeminiStreamDriver {
 
     func cancel() async { cancelled = true; currentPull?.cancel(); await closeTransport() }
 
-    private func pullFrame() async throws -> ServerSentEvent? { let task = Task { [weak self] in guard let self else { return nil }; return try await self.pullFromIterator() }; currentPull = task; defer { currentPull = nil }; return try await task.value }
+    private func pullFrame() async throws -> ServerSentEvent? { let task: Task<ServerSentEvent?, Error> = Task { [weak self] in guard let self else { return nil }; return try await self.pullFromIterator() }; currentPull = task; defer { currentPull = nil }; return try await task.value }
     private func pullFromIterator() async throws -> ServerSentEvent? { guard var iterator else { return nil }; let frame = try await iterator.next(); self.iterator = iterator; return frame }
 
     private func process(_ frame: ServerSentEvent) async throws {

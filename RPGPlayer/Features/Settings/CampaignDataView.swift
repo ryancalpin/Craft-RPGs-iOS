@@ -3,6 +3,13 @@ import SwiftUI
 struct CampaignDataContext: Sendable {
     let campaignID: UUID
     let campaignTitle: String
+    let project: NormalizedProject?
+    let projectionLoader: ProjectionLoader
+    let campaignStore: any CampaignStore
+    let voiceCatalog: any VoiceCatalogProviding
+    let imageRoutingStore: any ImageRoutingSettingsStore
+    let imageProvider: ImageRoutingProvider
+    let imageAssetStore: any CampaignImageAssetStoring
     let manager: CampaignDataManager
     let recoveryBundleWriter: RecoveryBundleWriter
 }
@@ -22,6 +29,48 @@ struct CampaignDataView: View {
 
     var body: some View {
         Form {
+            if let project = context.project {
+                Section("Narration") {
+                    NavigationLink {
+                        CampaignVoiceAssignmentsView(
+                            campaignID: context.campaignID,
+                            project: project,
+                            projectionLoader: context.projectionLoader,
+                            campaignStore: context.campaignStore,
+                            voiceCatalog: context.voiceCatalog
+                        )
+                    } label: {
+                        Label(
+                            "Voice assignments",
+                            systemImage: "waveform.and.person.filled"
+                        )
+                    }
+                    .accessibilityIdentifier("campaignVoiceAssignmentsLink")
+                }
+                .listRowBackground(PlayerTheme.opaquePanel)
+
+                Section("Visuals") {
+                    NavigationLink {
+                        ImageGenerationView(
+                            campaignID: context.campaignID,
+                            project: project,
+                            projectionLoader: context.projectionLoader,
+                            campaignStore: context.campaignStore,
+                            routingStore: context.imageRoutingStore,
+                            imageProvider: context.imageProvider,
+                            assetStore: context.imageAssetStore
+                        )
+                    } label: {
+                        Label(
+                            "Generate campaign image",
+                            systemImage: "photo.badge.plus"
+                        )
+                    }
+                    .accessibilityIdentifier("campaignImageGenerationLink")
+                }
+                .listRowBackground(PlayerTheme.opaquePanel)
+            }
+
             Section("Recovery") {
                 Button(action: exportRecoveryBundle) {
                     Label(

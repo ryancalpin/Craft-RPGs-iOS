@@ -192,7 +192,7 @@ public actor OpenAIProvider: AIProvider {
             )
         ]
         let body = OpenAIWire.Request(
-            model: Self.fallbackModels[0].id,
+            model: request.modelID ?? Self.fallbackModels[0].id,
             input: input,
             stream: true,
             tools: Self.tools,
@@ -211,26 +211,9 @@ public actor OpenAIProvider: AIProvider {
         try! ProviderCredentialReference(providerID: .openAI)
     }()
 
-    private static let fallbackModels: [ProviderModel] = [
-        try! ProviderModel(
-            providerID: .openAI,
-            id: "gpt-5.1",
-            displayName: "GPT-5.1",
-            contextWindowTokens: 400_000,
-            maximumOutputTokens: 128_000,
-            supportsTools: true,
-            supportsStructuredOutput: true
-        ),
-        try! ProviderModel(
-            providerID: .openAI,
-            id: "gpt-4.1",
-            displayName: "GPT-4.1",
-            contextWindowTokens: 1_047_576,
-            maximumOutputTokens: 32_768,
-            supportsTools: true,
-            supportsStructuredOutput: true
-        )
-    ]
+    private static let fallbackModels = CuratedProviderModelCatalog.models(
+        for: .openAI
+    )
 
     private static func model(for id: String) -> ProviderModel? {
         if let fallback = fallbackModels.first(where: { $0.id == id }) {
@@ -530,7 +513,7 @@ private actor OpenAIStreamDriver {
     }
 
     private func pullFrame() async throws -> ServerSentEvent? {
-        let task = Task { [weak self] in
+        let task: Task<ServerSentEvent?, Error> = Task { [weak self] in
             guard let self else { return nil }
             return try await self.pullFromIterator()
         }
@@ -563,7 +546,7 @@ private actor OpenAIStreamDriver {
             guard let delta = event.delta else {
                 throw ProviderError.malformedResponse
             }
-            appendText(delta)
+            try appendText(delta)
             pending.append(.textDelta(delta))
         case "response.refusal.delta", "response.refusal.done":
             throw ProviderError.safetyRefusal

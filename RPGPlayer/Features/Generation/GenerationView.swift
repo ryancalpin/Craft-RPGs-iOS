@@ -25,6 +25,9 @@ struct GenerationView: View {
             VStack(spacing: 5) {
                 Spacer(minLength: safeAreaTop + 68)
 
+                PlayerEyebrow(text: "The story is turning", tint: PlayerTheme.accentSoft)
+                    .padding(.bottom, 2)
+
                 CharacterSilhouettePlaceholder()
                     .frame(width: silhouetteWidth)
                     .frame(height: silhouetteHeight)
@@ -121,7 +124,7 @@ private struct GenerationCard: View {
                     cornerRadius: PlayerTheme.panelRadius,
                     style: .continuous
                 ),
-                style: .solid
+                style: .material(panelOverlayOpacity: 0.68)
             )
         }
         .clipShape(
@@ -138,8 +141,13 @@ private struct GenerationCard: View {
         HStack(spacing: 15) {
             GenerationAvatarPlaceholder()
 
-            Text(phase.displayText)
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(phase.displayText)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                Text("Building the next moment in your campaign")
+                    .font(.caption)
+                    .foregroundStyle(PlayerTheme.tertiaryText)
+            }
                 .foregroundStyle(PlayerTheme.primaryText)
                 .lineLimit(
                     PlayerAccessibilityPolicy.lineLimit(

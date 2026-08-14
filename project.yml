@@ -25,6 +25,18 @@ targets:
       path: Config/App-Info.plist
       properties:
         CFBundleDisplayName: RPGPlayer
+        CFBundleIcons:
+          CFBundlePrimaryIcon:
+            CFBundleIconFiles:
+              - AppIcon
+            CFBundleIconName: AppIcon
+            CFBundleIconIsPrerendered: false
+        CFBundleIcons~ipad:
+          CFBundlePrimaryIcon:
+            CFBundleIconFiles:
+              - AppIcon
+            CFBundleIconName: AppIcon
+            CFBundleIconIsPrerendered: false
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
@@ -44,6 +56,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.calpinlabs.rpgplayer
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        DEVELOPMENT_TEAM: X6PM238Q98
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "RPGPlayer App Store 20260813"
     dependencies:
       - target: TurnActivityExtension
       - package: ZIPFoundation
@@ -64,6 +81,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.calpinlabs.rpgplayer.turn-activity
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+        DEVELOPMENT_TEAM: X6PM238Q98
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "RPGPlayer Turn Activity App Store 20260813"
   RPGPlayerTests:
     type: bundle.unit-test
     platform: iOS

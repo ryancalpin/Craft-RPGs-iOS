@@ -40,6 +40,7 @@ struct OverviewDrawerView: View {
     var campaignDataContext: CampaignDataContext? = nil
     var campaignDeleted: @MainActor () -> Void = {}
     var liveContext: LiveCampaignOverview? = nil
+    var liveAssistantContext: LiveCampaignAssistantContext? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,7 +62,9 @@ struct OverviewDrawerView: View {
                     CampaignOverviewContent(state: $state)
                 }
             case .assistant:
-                if liveContext == nil {
+                if let liveAssistantContext {
+                    LiveCampaignAssistantContent(context: liveAssistantContext)
+                } else if liveContext == nil {
                     CampaignAssistantContent(
                         message: $state.assistantDraft,
                         messages: $state.assistantMessages,
@@ -73,7 +76,7 @@ struct OverviewDrawerView: View {
                         "Assistant",
                         systemImage: "sparkles",
                         description: Text(
-                            "Campaign assistance will be connected in a later phase."
+                            "Campaign context is still loading."
                         )
                     )
                     .foregroundStyle(PlayerTheme.secondaryText)
@@ -900,6 +903,7 @@ private struct AssistantTokenBar: View {
 }
 
 private struct AssistantComposerFooter: View {
+    @State private var modelNoticePresented = false
     let canSend: Bool
     let send: () -> Void
 
@@ -911,7 +915,9 @@ private struct AssistantComposerFooter: View {
                 identifier: "assistantComposerAdd"
             )
 
-            Button(action: {}) {
+            Button {
+                modelNoticePresented = true
+            } label: {
                 HStack(spacing: 5) {
                     Text("GPT-5.6 Luna")
                         .font(.caption.weight(.semibold))
@@ -927,6 +933,11 @@ private struct AssistantComposerFooter: View {
             .buttonStyle(.plain)
             .accessibilityLabel("GPT-5.6 Luna")
             .accessibilityIdentifier("assistantModelPicker")
+            .alert("Assistant model", isPresented: $modelNoticePresented) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Choose the primary assistant model in Provider Settings.")
+            }
 
             Spacer(minLength: 0)
 
@@ -954,12 +965,15 @@ private struct AssistantComposerFooter: View {
 }
 
 private struct AssistantComposerControl: View {
+    @State private var noticePresented = false
     let systemName: String
     let label: LocalizedStringKey
     let identifier: String
 
     var body: some View {
-        Button(action: {}) {
+        Button {
+            noticePresented = true
+        } label: {
             Image(systemName: systemName)
                 .font(.caption.weight(.semibold))
                 .frame(width: 44, height: 44)
@@ -968,6 +982,11 @@ private struct AssistantComposerControl: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
+        .alert(label, isPresented: $noticePresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This fixture control is not available until the live campaign context is opened.")
+        }
     }
 }
 

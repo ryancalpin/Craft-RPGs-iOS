@@ -8,14 +8,28 @@ final class AppDependencyGraph {
     let store: SwiftDataCampaignStore
     let projectionLoader: ProjectionLoader
     let campaignDirectory: CampaignDirectory
+    let campaignCreator: CampaignCreator
     let presentationStore: PlayerPresentationStore
     let importCoordinator: ImportCoordinator
     let recoveryBundleReader: RecoveryBundleReader
     let recoveryBundleWriter: RecoveryBundleWriter
     let campaignDataManager: CampaignDataManager
+    let turnActivityCoordinator: TurnActivityCoordinator
+    let turnBackgroundExecutionController: TurnBackgroundExecutionController
+    let voiceRoutingSettingsStore: any VoiceRoutingSettingsStore
+    let speechSynthesizer: SpeechRoutingProvider
+    let speechAudioCache: FileSpeechAudioCache
+    let narrationPlaybackCoordinator: NarrationPlaybackCoordinator
     let providerCredentialSettingsStore: any ProviderCredentialSettingsStore
     let providerCredentialReader: any ProviderCredentialReader
     let providerCredentialValidator: any ProviderCredentialValidator
+    let modelRoutingSettingsStore: any ModelRoutingSettingsStore
+    let imageRoutingSettingsStore: any ImageRoutingSettingsStore
+    let aiProviders: [ProviderID: any AIProvider]
+    let imageProviders: [ProviderID: any ImageProvider]
+    let providerModelCatalog: any ProviderModelCatalogProviding
+    let imageProviderCatalog: any ImageProviderCatalogProviding
+    let voiceSettingsDependencies: VoiceSettingsDependencies
     let startsAtLibrary: Bool
 
     init(arguments: [String]) {
@@ -29,6 +43,66 @@ final class AppDependencyGraph {
         providerCredentialSettingsStore = credentialDependencies.settingsStore
         providerCredentialReader = credentialDependencies.reader
         providerCredentialValidator = credentialDependencies.validator
+
+        let aiProviders: [ProviderID: any AIProvider] = [
+            .openAI: OpenAIProvider(credentialReader: providerCredentialReader),
+            .openRouter: OpenRouterProvider(
+                credentialReader: providerCredentialReader
+            ),
+            .anthropic: AnthropicProvider(
+                credentialReader: providerCredentialReader
+            ),
+            .gemini: GeminiProvider(credentialReader: providerCredentialReader)
+        ]
+        let imageProviders: [ProviderID: any ImageProvider] = [
+            .openAI: OpenAIImageProvider(
+                credentialReader: providerCredentialReader
+            )
+        ]
+        self.aiProviders = aiProviders
+        self.imageProviders = imageProviders
+        modelRoutingSettingsStore = UserDefaultsModelRoutingStore()
+        imageRoutingSettingsStore = UserDefaultsImageRoutingStore()
+        providerModelCatalog = ProviderModelCatalogService(
+            providers: aiProviders
+        )
+        imageProviderCatalog = ImageProviderCatalogService(
+            providers: imageProviders
+        )
+
+        let voiceStore: KeychainCredentialStore
+        do {
+            if let fixture = Self.providerSettingsFixture(arguments: arguments) {
+                voiceStore = try KeychainCredentialStore(
+                    testStoreIdentifier: fixture.storeIdentifier
+                )
+            } else {
+                voiceStore = KeychainCredentialStore()
+            }
+        } catch {
+            preconditionFailure("Invalid voice settings fixture scope")
+        }
+        let voiceReader: any VoiceCredentialReader = voiceStore
+        voiceSettingsDependencies = VoiceSettingsDependencies(
+            credentialSettingsStore: voiceStore,
+            credentialReader: voiceReader,
+            credentialValidator: arguments.contains("-ui-testing")
+                ? UnavailableVoiceCredentialValidator()
+                : LiveVoiceCredentialValidator(),
+            routingStore: UserDefaultsVoiceRoutingStore(),
+            catalog: ElevenLabsClient(credentialReader: voiceReader)
+        )
+        voiceRoutingSettingsStore = UserDefaultsVoiceRoutingStore()
+        let speechProviders: [VoiceProviderID: any SpeechSynthesizer] = [
+            .appleSpeech: AppleSpeechSynthesizer(),
+            .elevenLabs: ElevenLabsSpeechSynthesizer(
+                credentialReader: voiceReader
+            )
+        ]
+        speechSynthesizer = SpeechRoutingProvider(
+            settings: .default,
+            providers: speechProviders
+        )
 
         do {
             try FileManager.default.createDirectory(
@@ -64,6 +138,14 @@ final class AppDependencyGraph {
         let campaignDirectory = CampaignDirectory(
             applicationSupportDirectory: support
         )
+        speechAudioCache = FileSpeechAudioCache(
+            campaignDirectory: campaignDirectory
+        )
+        narrationPlaybackCoordinator = NarrationPlaybackCoordinator(
+            synthesizer: speechSynthesizer,
+            cache: speechAudioCache,
+            routingStore: voiceRoutingSettingsStore
+        )
         let recoveryBundleWriter = RecoveryBundleWriter(
             store: store,
             campaignDirectory: campaignDirectory
@@ -76,6 +158,10 @@ final class AppDependencyGraph {
         self.store = store
         projectionLoader = ProjectionLoader(store: store)
         self.campaignDirectory = campaignDirectory
+        campaignCreator = CampaignCreator(
+            store: store,
+            campaignDirectory: campaignDirectory
+        )
         presentationStore = PlayerPresentationStore(
             fileURL: support
                 .appendingPathComponent("Presentation", isDirectory: true)
@@ -83,6 +169,8 @@ final class AppDependencyGraph {
         )
         self.recoveryBundleWriter = recoveryBundleWriter
         self.campaignDataManager = campaignDataManager
+        turnActivityCoordinator = TurnActivityCoordinator()
+        turnBackgroundExecutionController = TurnBackgroundExecutionController()
         recoveryBundleReader = RecoveryBundleReader(
             store: store,
             applicationSupportDirectory: support
@@ -106,13 +194,53 @@ final class AppDependencyGraph {
         )
     }
 
+    func makeModelRoutingProvider(
+        settings: ModelRoutingSettings
+    ) -> ModelRoutingProvider {
+        ModelRoutingProvider(settings: settings, providers: aiProviders)
+    }
+
+    func makeImageRoutingProvider(
+        settings: ImageRoutingSettings
+    ) -> ImageRoutingProvider {
+        ImageRoutingProvider(settings: settings, providers: imageProviders)
+    }
+
+    func makeCampaignTurnStreaming(
+        model: PlayerSessionModel
+    ) -> CampaignTurnStreaming? {
+        guard let project = model.project else { return nil }
+        return CampaignTurnStreaming(
+            campaignID: model.campaignID,
+            project: project,
+            projectionLoader: projectionLoader,
+            campaignStore: store,
+            routingStore: modelRoutingSettingsStore,
+            modelCatalog: providerModelCatalog,
+            providers: aiProviders
+        )
+    }
+
     func campaignDataContext(
         campaignID: UUID,
-        title: String
+        title: String,
+        project: NormalizedProject? = nil
     ) -> CampaignDataContext {
         CampaignDataContext(
             campaignID: campaignID,
             campaignTitle: title,
+            project: project,
+            projectionLoader: projectionLoader,
+            campaignStore: store,
+            voiceCatalog: voiceSettingsDependencies.catalog,
+            imageRoutingStore: imageRoutingSettingsStore,
+            imageProvider: ImageRoutingProvider(
+                settings: .default,
+                providers: imageProviders
+            ),
+            imageAssetStore: CampaignImageAssetStore(
+                campaignDirectory: campaignDirectory
+            ),
             manager: campaignDataManager,
             recoveryBundleWriter: recoveryBundleWriter
         )
@@ -179,7 +307,9 @@ final class AppDependencyGraph {
             return (
                 settingsStore: store,
                 reader: store,
-                validator: UnavailableProviderCredentialValidator()
+                validator: arguments.contains("-ui-testing")
+                    ? UnavailableProviderCredentialValidator()
+                    : LiveProviderCredentialValidator()
             )
         }
 

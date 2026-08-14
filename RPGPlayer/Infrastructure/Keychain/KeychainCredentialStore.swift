@@ -3,7 +3,9 @@ import Security
 
 public actor KeychainCredentialStore:
     ProviderCredentialSettingsStore,
-    ProviderCredentialReader
+    ProviderCredentialReader,
+    VoiceCredentialSettingsStore,
+    VoiceCredentialReader
 {
     private let testStoreIdentifier: String?
 
@@ -118,6 +120,108 @@ public actor KeychainCredentialStore:
         }
     }
 
+    public func exists(
+        for reference: VoiceCredentialReference
+    ) async throws -> Bool {
+        let query = KeychainCredentialQueryBuilder.existenceQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        switch status {
+        case errSecSuccess:
+            return true
+        case errSecItemNotFound:
+            return false
+        default:
+            throw Self.error(for: status)
+        }
+    }
+
+    public func save(
+        _ candidate: String,
+        for reference: VoiceCredentialReference
+    ) async throws {
+        let credentialData = try Self.validatedCredentialData(candidate)
+        let query = KeychainCredentialQueryBuilder.addQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier,
+            credentialData: credentialData
+        )
+        let status = SecItemAdd(query as CFDictionary, nil)
+        switch status {
+        case errSecSuccess:
+            return
+        case errSecDuplicateItem:
+            throw ProviderCredentialError.alreadyExists
+        default:
+            throw Self.error(for: status)
+        }
+    }
+
+    public func replace(
+        _ candidate: String,
+        for reference: VoiceCredentialReference
+    ) async throws {
+        let credentialData = try Self.validatedCredentialData(candidate)
+        let query = KeychainCredentialQueryBuilder.identityQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        let attributes = KeychainCredentialQueryBuilder
+            .replacementAttributes(credentialData: credentialData)
+        let status = SecItemUpdate(
+            query as CFDictionary,
+            attributes as CFDictionary
+        )
+        switch status {
+        case errSecSuccess:
+            return
+        case errSecItemNotFound:
+            throw ProviderCredentialError.notFound
+        default:
+            throw Self.error(for: status)
+        }
+    }
+
+    public func delete(
+        _ reference: VoiceCredentialReference
+    ) async throws {
+        let query = KeychainCredentialQueryBuilder.identityQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        let status = SecItemDelete(query as CFDictionary)
+        switch status {
+        case errSecSuccess, errSecItemNotFound:
+            return
+        default:
+            throw Self.error(for: status)
+        }
+    }
+
+    public func credentialData(
+        for reference: VoiceCredentialReference
+    ) async throws -> Data {
+        let query = KeychainCredentialQueryBuilder.readQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        switch status {
+        case errSecSuccess:
+            guard let credentialData = result as? Data else {
+                throw ProviderCredentialError.corruptCredential
+            }
+            return credentialData
+        case errSecItemNotFound:
+            throw ProviderCredentialError.notFound
+        default:
+            throw Self.error(for: status)
+        }
+    }
+
     private static func validatedCredentialData(
         _ candidate: String
     ) throws -> Data {
@@ -145,6 +249,9 @@ public actor KeychainCredentialStore:
 enum KeychainCredentialQueryBuilder {
     static let productionServiceNamespace =
         "com.calpinlabs.rpgplayer.provider-credential.v1"
+
+    static let voiceServiceNamespace =
+        "com.calpinlabs.rpgplayer.voice-credential.v1"
 
     static func validatedTestStoreIdentifier(
         _ identifier: String
@@ -179,8 +286,41 @@ enum KeychainCredentialQueryBuilder {
         ]
     }
 
+    static func identityQuery(
+        reference: VoiceCredentialReference,
+        testStoreIdentifier: String? = nil
+    ) -> [String: Any] {
+        let productionService =
+            "\(voiceServiceNamespace).\(reference.providerID.rawValue)"
+        let service = if let testStoreIdentifier {
+            "\(productionService).\(testStoreIdentifier)"
+        } else {
+            productionService
+        }
+        return [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: reference.accountLabel
+        ]
+    }
+
     static func addQuery(
         reference: ProviderCredentialReference,
+        testStoreIdentifier: String? = nil,
+        credentialData: Data
+    ) -> [String: Any] {
+        var query = identityQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        query[kSecValueData as String] = credentialData
+        query[kSecAttrAccessible as String] =
+            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return query
+    }
+
+    static func addQuery(
+        reference: VoiceCredentialReference,
         testStoreIdentifier: String? = nil,
         credentialData: Data
     ) -> [String: Any] {
@@ -206,8 +346,32 @@ enum KeychainCredentialQueryBuilder {
         return query
     }
 
+    static func existenceQuery(
+        reference: VoiceCredentialReference,
+        testStoreIdentifier: String? = nil
+    ) -> [String: Any] {
+        var query = identityQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        return query
+    }
+
     static func readQuery(
         reference: ProviderCredentialReference,
+        testStoreIdentifier: String? = nil
+    ) -> [String: Any] {
+        var query = existenceQuery(
+            reference: reference,
+            testStoreIdentifier: testStoreIdentifier
+        )
+        query[kSecReturnData as String] = true
+        return query
+    }
+
+    static func readQuery(
+        reference: VoiceCredentialReference,
         testStoreIdentifier: String? = nil
     ) -> [String: Any] {
         var query = existenceQuery(

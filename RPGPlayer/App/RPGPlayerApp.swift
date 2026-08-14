@@ -77,6 +77,7 @@ private struct CampaignAppRoot: View {
         NavigationStack(path: $path) {
             CampaignLibraryView(
                 model: libraryModel,
+                campaignCreator: graph.campaignCreator,
                 importCoordinator: graph.importCoordinator,
                 recoveryBundleReader: graph.recoveryBundleReader,
                 openProviderSettings: openProviderSettings,
@@ -94,7 +95,12 @@ private struct CampaignAppRoot: View {
                 case .providerSettings:
                     ProviderSettingsView(
                         store: graph.providerCredentialSettingsStore,
-                        validator: graph.providerCredentialValidator
+                        validator: graph.providerCredentialValidator,
+                        modelRoutingStore: graph.modelRoutingSettingsStore,
+                        providerModelCatalog: graph.providerModelCatalog,
+                        imageRoutingStore: graph.imageRoutingSettingsStore,
+                        imageProviderCatalog: graph.imageProviderCatalog,
+                        voiceSettings: graph.voiceSettingsDependencies
                     )
                 }
             }

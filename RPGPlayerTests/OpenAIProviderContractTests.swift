@@ -4,7 +4,7 @@ import Testing
 
 @Suite(.serialized)
 struct OpenAIProviderContractTests {
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func responsesFixtureNormalizesStructuredTextAndUsage() async throws {
         let provider = try await makeProvider(fixture: "successful-text.sse")
         let events = try await collect(
@@ -22,7 +22,8 @@ struct OpenAIProviderContractTests {
             Issue.record("Expected a completed normalized envelope")
             return
         }
-        #expect(envelope.requestID == try uuid("11111111-1111-4111-8111-111111111111"))
+        let expectedRequestID = try uuid("11111111-1111-4111-8111-111111111111")
+        #expect(envelope.requestID == expectedRequestID)
         #expect(envelope.narration.isEmpty)
     }
 
@@ -83,7 +84,7 @@ struct OpenAIProviderContractTests {
         #expect(await task.value == .cancelled)
     }
 
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func responsesModelDiscoveryCancellationNormalizesToCancelled() async throws {
         let provider = try await makeProvider(
             fixture: "models.json",
@@ -151,7 +152,7 @@ struct OpenAIProviderContractTests {
         }
     }
 
-    @Test(.timeLimit(.seconds(5)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
     func responsesFixturesNormalizeTerminalFailures(
         fixture: String
     ) async throws {

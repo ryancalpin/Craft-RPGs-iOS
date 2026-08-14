@@ -4,7 +4,7 @@ import Testing
 
 @Suite(.serialized)
 struct OpenRouterProviderContractTests {
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func chatCompletionFixtureNormalizesStructuredTextAndUsage() async throws {
         let provider = try await makeProvider(fixture: "successful-text.sse")
         let events = try await collect(provider.adapter.streamTurn(try makeRequest()))
@@ -20,7 +20,8 @@ struct OpenRouterProviderContractTests {
             Issue.record("Expected a completed normalized envelope")
             return
         }
-        #expect(envelope.requestID == try uuid("11111111-1111-4111-8111-111111111111"))
+        let expectedRequestID = try uuid("11111111-1111-4111-8111-111111111111")
+        #expect(envelope.requestID == expectedRequestID)
     }
 
     @Test
@@ -78,7 +79,7 @@ struct OpenRouterProviderContractTests {
         #expect(await task.value == .cancelled)
     }
 
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func chatCompletionModelDiscoveryCancellationNormalizesToCancelled() async throws {
         let provider = try await makeProvider(
             fixture: "models.json",
@@ -144,7 +145,7 @@ struct OpenRouterProviderContractTests {
         }
     }
 
-    @Test(.timeLimit(.seconds(5)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
     func chatCompletionFixturesNormalizeTerminalFailures(
         fixture: String
     ) async throws {

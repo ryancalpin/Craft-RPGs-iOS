@@ -26,7 +26,7 @@ enum GeminiWire {
         init(text: String) { self.text = text }
     }
 
-    struct Tool: Encodable {
+    struct Tool: Encodable, Sendable {
         let functionDeclarations: [FunctionDeclaration]
 
         private enum CodingKeys: String, CodingKey {
@@ -34,19 +34,19 @@ enum GeminiWire {
         }
     }
 
-    struct FunctionDeclaration: Encodable {
+    struct FunctionDeclaration: Encodable, Sendable {
         let name: String
         let description: String
         let parameters: Schema
     }
 
-    struct Schema: Encodable {
+    struct Schema: Encodable, Sendable {
         let type = "OBJECT"
         let properties: [String: PropertySchema]
         let required: [String]
     }
 
-    struct PropertySchema: Encodable {
+    struct PropertySchema: Encodable, Sendable {
         let type: String
         let description: String
     }
@@ -56,14 +56,14 @@ enum GeminiWire {
         let responseJsonSchema: ResponseObjectSchema
     }
 
-    struct ResponseObjectSchema: Encodable {
+    struct ResponseObjectSchema: Encodable, Sendable {
         let type = "object"
         let properties: [String: ResponsePropertySchema]
         let required: [String]
         let additionalProperties = false
     }
 
-    struct ResponsePropertySchema: Encodable {
+    final class ResponsePropertySchema: Encodable, Sendable {
         let type: String
         let description: String
         let properties: [String: ResponsePropertySchema]?

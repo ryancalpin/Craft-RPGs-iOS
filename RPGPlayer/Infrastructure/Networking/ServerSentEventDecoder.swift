@@ -19,6 +19,18 @@ protocol IncrementalFrameDecoder: Sendable {
 
     mutating func consume(_ byte: UInt8) throws -> Frame?
     mutating func finish() throws -> Frame?
+
+    /// Finalize a stream that ends immediately after a complete data line.
+    /// Strict callers can keep using `finish()` to reject an unterminated
+    /// frame; URL streams use this EOF-aware path because providers commonly
+    /// close after their final data line without an extra blank separator.
+    mutating func finishAtEOF() throws -> Frame?
+}
+
+extension IncrementalFrameDecoder {
+    mutating func finishAtEOF() throws -> Frame? {
+        try finish()
+    }
 }
 
 struct ServerSentEventDecoder: IncrementalFrameDecoder {
@@ -76,6 +88,21 @@ struct ServerSentEventDecoder: IncrementalFrameDecoder {
             throw StreamingHTTPError.truncatedFrame
         }
         return nil
+    }
+
+    mutating func finishAtEOF() throws -> ServerSentEvent? {
+        if lineBytes.isEmpty == false {
+            let finalLine = lineBytes
+            lineBytes = Data()
+            _ = try consumeCompleteLine(finalLine)
+        }
+        guard dataLines.isEmpty == false else {
+            guard eventName == nil else {
+                throw StreamingHTTPError.truncatedFrame
+            }
+            return nil
+        }
+        return dispatchEventIfPresent()
     }
 
     mutating func append(_ chunk: Data) throws -> [ServerSentEvent] {

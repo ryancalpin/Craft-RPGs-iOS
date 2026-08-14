@@ -177,7 +177,7 @@ public actor OpenRouterProvider: AIProvider {
             return "[\(section.kind.rawValue)]\n\(items)"
         }.joined(separator: "\n\n")
         let body = OpenRouterWire.Request(
-            model: Self.fallbackModels[0].id,
+            model: request.modelID ?? Self.fallbackModels[0].id,
             messages: [
                 OpenRouterWire.Message(
                     role: "system",
@@ -205,26 +205,9 @@ public actor OpenRouterProvider: AIProvider {
         try! ProviderCredentialReference(providerID: .openRouter)
     }()
 
-    private static let fallbackModels: [ProviderModel] = [
-        try! ProviderModel(
-            providerID: .openRouter,
-            id: "openai/gpt-5.1",
-            displayName: "OpenAI GPT-5.1 via OpenRouter",
-            contextWindowTokens: 400_000,
-            maximumOutputTokens: 128_000,
-            supportsTools: true,
-            supportsStructuredOutput: true
-        ),
-        try! ProviderModel(
-            providerID: .openRouter,
-            id: "openai/gpt-4.1-mini",
-            displayName: "OpenAI GPT-4.1 mini via OpenRouter",
-            contextWindowTokens: 1_047_576,
-            maximumOutputTokens: 32_768,
-            supportsTools: true,
-            supportsStructuredOutput: true
-        )
-    ]
+    private static let fallbackModels = CuratedProviderModelCatalog.models(
+        for: .openRouter
+    )
 
     private static func model(for id: String) -> ProviderModel? {
         if let fallback = fallbackModels.first(where: { $0.id == id }) {
@@ -521,7 +504,7 @@ private actor OpenRouterStreamDriver {
     }
 
     private func pullFrame() async throws -> ServerSentEvent? {
-        let task = Task { [weak self] in
+        let task: Task<ServerSentEvent?, Error> = Task { [weak self] in
             guard let self else { return nil }
             return try await self.pullFromIterator()
         }
@@ -553,7 +536,7 @@ private actor OpenRouterStreamDriver {
                 throw ProviderError.safetyRefusal
             }
             if let content = choice.delta.content {
-                appendText(content)
+                try appendText(content)
                 pending.append(.textDelta(content))
             }
             for call in choice.delta.toolCalls ?? [] {

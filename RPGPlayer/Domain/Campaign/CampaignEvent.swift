@@ -456,15 +456,20 @@ public enum VoiceAssignmentSource: String, Codable, Sendable {
 
 public struct VoiceAssignmentChangedPayload: Codable, Equatable, Sendable {
     public let characterID: String
+    /// Older campaign events omit this field and continue to infer the
+    /// provider from the global voice route.
+    public let providerID: VoiceProviderID?
     public let voiceID: String?
     public let source: VoiceAssignmentSource
 
     public init(
         characterID: String,
+        providerID: VoiceProviderID? = nil,
         voiceID: String?,
         source: VoiceAssignmentSource
     ) {
         self.characterID = characterID
+        self.providerID = providerID
         self.voiceID = voiceID
         self.source = source
     }

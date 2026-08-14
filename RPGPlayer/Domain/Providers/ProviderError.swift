@@ -24,6 +24,12 @@ public enum ProviderError: Error, Equatable, Sendable {
             false
         }
     }
+
+    /// A second configured provider can sometimes recover from a quota error,
+    /// even though retrying the same provider cannot.
+    public var isFallbackEligible: Bool {
+        isRetryableWithoutUserCorrection || self == .quotaExceeded
+    }
 }
 
 extension ProviderError: LocalizedError {

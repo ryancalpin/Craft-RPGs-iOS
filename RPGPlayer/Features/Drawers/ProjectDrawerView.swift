@@ -38,6 +38,7 @@ struct ProjectDrawerView: View {
     @Environment(\.playerReduceTransparencyOverride) private var reduceTransparencyOverride
     @State private var selectedSection: Section = .files
     @State private var charactersExpanded = true
+    @State private var campaignDataPresented = false
 
     @Binding var searchText: String
     @Binding var searchFocused: Bool
@@ -48,6 +49,9 @@ struct ProjectDrawerView: View {
     let openPackages: () -> Void
     var project: NormalizedProject? = nil
     var exitCampaign: (() -> Void)? = nil
+    var refreshProject: @MainActor () -> Void = {}
+    var campaignDataContext: CampaignDataContext? = nil
+    var campaignDeleted: @MainActor () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -68,6 +72,13 @@ struct ProjectDrawerView: View {
                 ProjectActionRow()
                     .padding(.horizontal, 12)
                     .padding(.bottom, 4)
+            } else if project != nil {
+                LiveProjectActionRow(
+                    refresh: refreshProject,
+                    openSettings: { campaignDataPresented = true }
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
             }
 
             Divider().overlay(PlayerTheme.panelStroke)
@@ -134,6 +145,46 @@ struct ProjectDrawerView: View {
         .accessibilityIdentifier("projectDrawer")
         .accessibilityValue(presentationSettled ? "Settled" : "Transitioning")
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .sheet(isPresented: $campaignDataPresented) {
+            if let campaignDataContext {
+                NavigationStack {
+                    CampaignDataView(
+                        context: campaignDataContext,
+                        campaignDeleted: campaignDeleted
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct LiveProjectActionRow: View {
+    let refresh: @MainActor () -> Void
+    let openSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: refresh) {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .font(.caption.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(Color.white.opacity(0.07), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("liveProjectRefresh")
+
+            Button(action: openSettings) {
+                Label("Campaign data", systemImage: "gearshape")
+                    .font(.caption.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(Color.white.opacity(0.07), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("liveProjectSettings")
+        }
+        .foregroundStyle(PlayerTheme.primaryText)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("liveProjectActionRow")
     }
 }
 
@@ -236,6 +287,7 @@ private struct ProjectFullActionRow: View {
 
 private struct ProjectCompactActionRow: View {
     @Binding var selectedLayout: ProjectLayout
+    @State private var noticeTitle: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -250,9 +302,15 @@ private struct ProjectCompactActionRow: View {
                 identifier: "projectNewFolder"
             )
             Menu {
-                Button("Import files", systemImage: "square.and.arrow.down") {}
-                Button("Refresh files", systemImage: "arrow.clockwise") {}
-                Button("Project settings", systemImage: "gearshape") {}
+                Button("Import files", systemImage: "square.and.arrow.down") {
+                    noticeTitle = "Import files"
+                }
+                Button("Refresh files", systemImage: "arrow.clockwise") {
+                    noticeTitle = "Refresh files"
+                }
+                Button("Project settings", systemImage: "gearshape") {
+                    noticeTitle = "Project settings"
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.caption.weight(.semibold))
@@ -274,6 +332,17 @@ private struct ProjectCompactActionRow: View {
             ProjectLayoutSelector(selectedLayout: $selectedLayout)
         }
         .frame(maxWidth: .infinity, minHeight: 44)
+        .alert(
+            noticeTitle ?? "Project action",
+            isPresented: Binding(
+                get: { noticeTitle != nil },
+                set: { if $0 == false { noticeTitle = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\(noticeTitle ?? "This action") is available after opening an imported campaign.")
+        }
     }
 }
 
@@ -328,12 +397,15 @@ private struct ProjectLayoutButton: View {
 }
 
 private struct ProjectActionButton: View {
+    @State private var noticePresented = false
     let systemName: String
     let label: LocalizedStringKey
     let identifier: String
 
     var body: some View {
-        Button(action: {}) {
+        Button {
+            noticePresented = true
+        } label: {
             Image(systemName: systemName)
                 .font(.caption.weight(.semibold))
                 .frame(width: 44, height: 44)
@@ -342,6 +414,11 @@ private struct ProjectActionButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
+        .alert(label, isPresented: $noticePresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This preview action is available after opening an imported campaign.")
+        }
     }
 }
 

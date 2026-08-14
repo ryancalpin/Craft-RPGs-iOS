@@ -378,12 +378,29 @@ final class RedactingURLProtocol: URLProtocol, @unchecked Sendable {
             queryItemNames: components?.queryItems?
                 .map(\.name)
                 .sorted() ?? [],
-            bodyByteCount: request.httpBody?.count,
-            bodyData: request.httpBody,
+            bodyByteCount: requestBodyData(for: request)?.count,
+            bodyData: requestBodyData(for: request),
             headers: NetworkDiagnosticRedactor().redactedHeaders(
                 request.allHTTPHeaderFields ?? [:]
             )
         )
+    }
+
+    private static func requestBodyData(for request: URLRequest) -> Data? {
+        if let body = request.httpBody {
+            return body
+        }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16_384)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            data.append(contentsOf: buffer[0..<count])
+        }
+        return data
     }
 }
 
@@ -432,7 +449,22 @@ private actor RedactingURLProtocolRegistry {
         snapshot: RedactingURLProtocol.DiagnosticSnapshot
     ) {
         guard var entry = entries[tag] else { return }
-        entry.diagnosticSnapshot = snapshot
+        if let existing = entry.diagnosticSnapshot,
+           snapshot.bodyData == nil,
+           existing.bodyData != nil {
+            entry.diagnosticSnapshot = RedactingURLProtocol.DiagnosticSnapshot(
+                method: snapshot.method,
+                scheme: snapshot.scheme,
+                host: snapshot.host,
+                path: snapshot.path,
+                queryItemNames: snapshot.queryItemNames,
+                bodyByteCount: existing.bodyByteCount,
+                bodyData: existing.bodyData,
+                headers: snapshot.headers
+            )
+        } else {
+            entry.diagnosticSnapshot = snapshot
+        }
         entries[tag] = entry
     }
 

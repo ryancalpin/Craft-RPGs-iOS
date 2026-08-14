@@ -259,7 +259,7 @@ struct StreamingHTTPSequence<Decoder: IncrementalFrameDecoder>:
 
             reachedEOF = true
             self.decoder = nil
-            return try decoder.finish()
+            return try decoder.finishAtEOF()
         }
 
         func discard() {

@@ -70,6 +70,33 @@ final class ImportFlowTests: XCTestCase {
         XCTAssertFalse(app.buttons["importCampaignButton"].exists)
     }
 
+    func testNewCampaignCanBeCreatedWithoutImporting() {
+        let app = launch(fixture: "cancel")
+
+        let newCampaignButton = app.buttons["newCampaignButton"]
+        XCTAssertTrue(newCampaignButton.waitForExistence(timeout: 2))
+        newCampaignButton.tap()
+
+        let newCampaignView = app.descendants(matching: .any)[
+            "newCampaignView"
+        ]
+        XCTAssertTrue(newCampaignView.waitForExistence(timeout: 2))
+
+        let titleField = app.textFields["newCampaignTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["createCampaignButton"].isEnabled)
+
+        titleField.tap()
+        titleField.typeText("The Lantern Coast")
+        XCTAssertTrue(app.buttons["createCampaignButton"].isEnabled)
+
+        app.buttons["createCampaignButton"].tap()
+
+        let sceneCanvas = app.descendants(matching: .any)["sceneCanvas"]
+        XCTAssertTrue(sceneCanvas.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["campaignTitle"].label, "The Lantern Coast")
+    }
+
     private func launch(fixture: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [

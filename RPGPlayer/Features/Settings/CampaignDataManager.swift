@@ -10,12 +10,33 @@ protocol CampaignKeyReferenceDeleting: Sendable {
     func deleteCampaignAssociations(for campaignID: UUID) async throws
 }
 
-struct NoOpCampaignAudioCacheDeleter: CampaignAudioCacheDeleting {
-    func deleteAudioCache(for campaignID: UUID) async throws {}
-}
+extension FileSpeechAudioCache: CampaignAudioCacheDeleting {}
 
-struct NoOpCampaignKeyReferenceDeleter: CampaignKeyReferenceDeleting {
-    func deleteCampaignAssociations(for campaignID: UUID) async throws {}
+struct FileCampaignKeyReferenceDeleter: CampaignKeyReferenceDeleting {
+    private let campaignDirectory: CampaignDirectory
+
+    init(campaignDirectory: CampaignDirectory) {
+        self.campaignDirectory = campaignDirectory
+    }
+
+    func deleteCampaignAssociations(for campaignID: UUID) async throws {
+        let campaignURL = campaignDirectory.campaignURL(for: campaignID)
+        guard campaignDirectory.isExactCampaignURL(
+            campaignURL,
+            for: campaignID
+        ) else {
+            throw CampaignDataError.invalidCampaignDirectory
+        }
+
+        let referenceURL = campaignURL.appendingPathComponent(
+            "key-references.json",
+            isDirectory: false
+        )
+        guard FileManager.default.fileExists(atPath: referenceURL.path) else {
+            return
+        }
+        try FileManager.default.removeItem(at: referenceURL)
+    }
 }
 
 enum CampaignDataError: Error, Equatable, Sendable {
@@ -32,13 +53,17 @@ struct CampaignDataManager: Sendable {
     init(
         store: any CampaignStore,
         campaignDirectory: CampaignDirectory = CampaignDirectory(),
-        audioCache: any CampaignAudioCacheDeleting = NoOpCampaignAudioCacheDeleter(),
-        keyReferences: any CampaignKeyReferenceDeleting = NoOpCampaignKeyReferenceDeleter()
+        audioCache: (any CampaignAudioCacheDeleting)? = nil,
+        keyReferences: (any CampaignKeyReferenceDeleting)? = nil
     ) {
         self.store = store
         self.campaignDirectory = campaignDirectory
-        self.audioCache = audioCache
-        self.keyReferences = keyReferences
+        self.audioCache = audioCache ?? FileSpeechAudioCache(
+            campaignDirectory: campaignDirectory
+        )
+        self.keyReferences = keyReferences ?? FileCampaignKeyReferenceDeleter(
+            campaignDirectory: campaignDirectory
+        )
     }
 
     func deleteCampaign(_ campaignID: UUID) async throws {
@@ -50,6 +75,8 @@ struct CampaignDataManager: Sendable {
             throw CampaignDataError.invalidCampaignDirectory
         }
 
+        try await audioCache.deleteAudioCache(for: campaignID)
+        try await keyReferences.deleteCampaignAssociations(for: campaignID)
         try await store.deleteCampaign(campaignID)
 
         if FileManager.default.fileExists(atPath: directoryURL.path) {
@@ -59,7 +86,5 @@ struct CampaignDataManager: Sendable {
                 throw CampaignDataError.unableToDeleteCampaignDirectory
             }
         }
-        try await audioCache.deleteAudioCache(for: campaignID)
-        try await keyReferences.deleteCampaignAssociations(for: campaignID)
     }
 }

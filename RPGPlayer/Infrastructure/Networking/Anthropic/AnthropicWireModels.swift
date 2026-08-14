@@ -40,7 +40,7 @@ enum AnthropicWire {
         let text: String
     }
 
-    struct Tool: Encodable {
+    struct Tool: Encodable, Sendable {
         let name: String
         let description: String
         let inputSchema: ObjectSchema
@@ -52,14 +52,14 @@ enum AnthropicWire {
         }
     }
 
-    struct ObjectSchema: Encodable {
+    struct ObjectSchema: Encodable, Sendable {
         let type = "object"
         let properties: [String: PropertySchema]
         let required: [String]
         let additionalProperties = false
     }
 
-    struct PropertySchema: Encodable {
+    final class PropertySchema: Encodable, Sendable {
         let type: String
         let description: String
         let properties: [String: PropertySchema]?

@@ -7,8 +7,14 @@ enum TurnStreamEvent: Equatable, Sendable {
 }
 
 protocol TurnStreaming: Sendable {
-    func events(for submission: PlayerSubmission)
+    func events(for submission: PlayerSubmission) async
         -> AsyncThrowingStream<TurnStreamEvent, Error>
+
+    func cancel() async
+}
+
+extension TurnStreaming {
+    func cancel() async {}
 }
 
 struct SimulatedTurnStreaming: TurnStreaming {
@@ -16,7 +22,7 @@ struct SimulatedTurnStreaming: TurnStreaming {
 
     func events(
         for submission: PlayerSubmission
-    ) -> AsyncThrowingStream<TurnStreamEvent, Error> {
+    ) async -> AsyncThrowingStream<TurnStreamEvent, Error> {
         let (stream, continuation) = AsyncThrowingStream.makeStream(
             of: TurnStreamEvent.self,
             throwing: Error.self

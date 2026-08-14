@@ -30,7 +30,7 @@ enum OpenAIWire {
         let schema: ObjectSchema
     }
 
-    struct Tool: Encodable {
+    struct Tool: Encodable, Sendable {
         let type = "function"
         let name: String
         let description: String
@@ -38,14 +38,14 @@ enum OpenAIWire {
         let strict = true
     }
 
-    struct ObjectSchema: Encodable {
+    struct ObjectSchema: Encodable, Sendable {
         let type = "object"
         let properties: [String: PropertySchema]
         let required: [String]
         let additionalProperties = false
     }
 
-    struct PropertySchema: Encodable {
+    final class PropertySchema: Encodable, Sendable {
         let type: String
         let description: String
         let properties: [String: PropertySchema]?
@@ -135,7 +135,7 @@ enum OpenAIWire {
 
         private enum CodingKeys: String, CodingKey {
             case type
-            case itemID = "id"
+            case itemID = "item_id"
             case callID = "call_id"
             case name
         }

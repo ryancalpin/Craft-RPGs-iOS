@@ -203,8 +203,7 @@ public struct CampaignReducer: Sendable {
             projection.pendingRolls[payload.rollID] = payload
 
         case .rollResolved(let payload):
-            guard projection.pendingRolls[payload.rollID] != nil,
-                  projection.resolvedRolls[payload.rollID] == nil else {
+            guard projection.resolvedRolls[payload.rollID] == nil else {
                 break
             }
             projection.pendingRolls[payload.rollID] = nil

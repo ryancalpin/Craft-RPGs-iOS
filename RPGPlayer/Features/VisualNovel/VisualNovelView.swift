@@ -9,6 +9,29 @@ struct VisualNovelView: View {
     let next: () -> Void
     let close: () -> Void
     let finish: () -> Void
+    let narrate: () -> Void
+
+    init(
+        message: GMMessage,
+        beatIndex: Int,
+        safeAreaTop: CGFloat,
+        safeAreaBottom: CGFloat,
+        previous: @escaping () -> Void,
+        next: @escaping () -> Void,
+        close: @escaping () -> Void,
+        finish: @escaping () -> Void,
+        narrate: @escaping () -> Void = {}
+    ) {
+        self.message = message
+        self.beatIndex = beatIndex
+        self.safeAreaTop = safeAreaTop
+        self.safeAreaBottom = safeAreaBottom
+        self.previous = previous
+        self.next = next
+        self.close = close
+        self.finish = finish
+        self.narrate = narrate
+    }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -32,6 +55,9 @@ struct VisualNovelView: View {
                 VStack(spacing: 8) {
                     Spacer(minLength: safeAreaTop + 68)
 
+                    PlayerEyebrow(text: "Scene playback", tint: PlayerTheme.accentSoft)
+                        .padding(.bottom, 2)
+
                     if currentBeat.kind != .title {
                         CharacterSilhouettePlaceholder()
                             .frame(
@@ -52,7 +78,8 @@ struct VisualNovelView: View {
                         currentBeat: resolvedBeatIndex,
                         beatCount: message.beats.count,
                         previous: previous,
-                        close: close
+                        close: close,
+                        narrate: narrate
                     )
 
                     VisualNovelCard(
@@ -78,6 +105,7 @@ private struct VisualNovelControlRow: View {
     let beatCount: Int
     let previous: () -> Void
     let close: () -> Void
+    let narrate: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -102,7 +130,7 @@ private struct VisualNovelControlRow: View {
                 systemName: "speaker.wave.2.fill",
                 label: "Narration",
                 identifier: "narrationControl",
-                action: {}
+                action: narrate
             )
 
             CircleIconButton(
@@ -144,7 +172,7 @@ private struct VisualNovelCard: View {
                     cornerRadius: PlayerTheme.panelRadius,
                     style: .continuous
                 ),
-                style: .solid
+                style: .material(panelOverlayOpacity: 0.62)
             )
         }
         .overlay(alignment: .bottom) {
@@ -285,11 +313,11 @@ private struct VisualNovelCard: View {
             .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 6 : 0)
             .frame(minWidth: 160, minHeight: 46)
             .background {
-                Capsule()
-                    .fill(Color(red: 0.035, green: 0.04, blue: 0.055))
+                    Capsule()
+                    .fill(PlayerTheme.canvasRaised)
                     .overlay {
                         Capsule()
-                            .stroke(PlayerTheme.panelStroke, lineWidth: 1)
+                            .stroke(PlayerTheme.accent.opacity(0.34), lineWidth: 1)
                     }
             }
             .frame(minHeight: PlayerTheme.controlHeight)

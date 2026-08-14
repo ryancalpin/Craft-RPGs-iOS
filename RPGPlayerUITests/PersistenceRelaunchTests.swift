@@ -108,6 +108,55 @@ final class PersistenceRelaunchTests: XCTestCase {
         )
     }
 
+    func testNativeCampaignPersistsAndReopensAfterRelaunch() {
+        let storeID = "task9-native-library-flow"
+        let app = launch(
+            storeID: storeID,
+            resetStore: true,
+            startsAtLibrary: true
+        )
+
+        XCTAssertTrue(
+            app.buttons["newCampaignButton"].waitForExistence(timeout: 3)
+        )
+        app.buttons["newCampaignButton"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["newCampaignView"]
+                .waitForExistence(timeout: 2)
+        )
+
+        let titleField = app.textFields["newCampaignTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 2))
+        titleField.tap()
+        titleField.typeText("The Quiet Meridian")
+        app.buttons["createCampaignButton"].tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["sceneCanvas"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(
+            app.staticTexts["campaignTitle"].label,
+            "The Quiet Meridian"
+        )
+
+        app.terminate()
+
+        let relaunched = launch(
+            storeID: storeID,
+            resetStore: false,
+            startsAtLibrary: false
+        )
+        XCTAssertTrue(
+            relaunched.descendants(matching: .any)["sceneCanvas"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(
+            relaunched.staticTexts["campaignTitle"].label,
+            "The Quiet Meridian"
+        )
+    }
+
     private func launch(
         storeID: String,
         resetStore: Bool,

@@ -4,7 +4,7 @@ import Testing
 
 @Suite(.serialized)
 struct GeminiProviderContractTests {
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func generateContentFixtureNormalizesStructuredTextAndUsage() async throws {
         let provider = try await makeProvider(fixture: "successful-text.sse")
         let events = try await collect(provider.adapter.streamTurn(try makeRequest()))
@@ -18,7 +18,8 @@ struct GeminiProviderContractTests {
             Issue.record("Expected a completed normalized envelope")
             return
         }
-        #expect(envelope.requestID == try uuid("11111111-1111-4111-8111-111111111111"))
+        let expectedRequestID = try uuid("11111111-1111-4111-8111-111111111111")
+        #expect(envelope.requestID == expectedRequestID)
     }
 
     @Test
@@ -100,7 +101,7 @@ struct GeminiProviderContractTests {
         }
     }
 
-    @Test(.timeLimit(.seconds(5)))
+    @Test(.timeLimit(.minutes(1)))
     func generateContentModelDiscoveryCancellationNormalizesToCancelled() async throws {
         let provider = try await makeProvider(
             fixture: "models.json",
@@ -228,7 +229,7 @@ struct GeminiProviderContractTests {
         }
     }
 
-    @Test(.timeLimit(.seconds(5)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["refusal.sse", "malformed-event.sse", "disconnect.sse"])
     func generateContentFixturesNormalizeTerminalFailures(fixture: String) async throws {
         let provider = try await makeProvider(fixture: fixture)
         let expected: ProviderError = fixture == "refusal.sse" ? .safetyRefusal : .malformedResponse
@@ -300,7 +301,8 @@ struct GeminiProviderContractTests {
     private func makeProvider(fixture: String, sentinel: String = "AIza-fixture-safe-123456", response: RedactingURLProtocol.Response = .http(statusCode: 200), path: String = "models/gemini-3.6-flash:streamGenerateContent", steps: [RedactingURLProtocol.Step]? = nil) async throws -> (adapter: GeminiProvider, registration: RedactingURLProtocol.Registration) {
         let url = try #require(URL(string: "https://fixture.invalid/v1beta/\(path)"))
         let fixtureURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("RPGPlayer/Fixtures/Providers/Gemini").appendingPathComponent(fixture)
-        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: response, steps: steps ?? [.chunk(try Data(contentsOf: fixtureURL))]), for: URLRequest(url: url))
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: response, steps: steps ?? [.chunk(fixtureData)]), for: URLRequest(url: url))
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [RedactingURLProtocol.self]
         return (GeminiProvider(credentialReader: FixtureCredentialReader(value: sentinel), baseRequest: registration.request, httpClient: StreamingHTTPClient(session: URLSession(configuration: configuration))), registration)
@@ -309,7 +311,8 @@ struct GeminiProviderContractTests {
     private func makeAnthropicProvider(fixture: String) async throws -> AnthropicProvider {
         let url = try #require(URL(string: "https://fixture.invalid/v1/messages"))
         let fixtureURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("RPGPlayer/Fixtures/Providers/Anthropic").appendingPathComponent(fixture)
-        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: .http(statusCode: 200), steps: [.chunk(try Data(contentsOf: fixtureURL))]), for: URLRequest(url: url))
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: .http(statusCode: 200), steps: [.chunk(fixtureData)]), for: URLRequest(url: url))
         let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [RedactingURLProtocol.self]
         return AnthropicProvider(credentialReader: FixtureCredentialReader(value: "sk-ant-equivalence"), baseRequest: registration.request, httpClient: StreamingHTTPClient(session: URLSession(configuration: configuration)))
     }
@@ -317,7 +320,8 @@ struct GeminiProviderContractTests {
     private func makeOpenAIProvider(fixture: String) async throws -> OpenAIProvider {
         let url = try #require(URL(string: "https://fixture.invalid/v1/responses"))
         let fixtureURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("RPGPlayer/Fixtures/Providers/OpenAI").appendingPathComponent(fixture)
-        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: .http(statusCode: 200), steps: [.chunk(try Data(contentsOf: fixtureURL))]), for: URLRequest(url: url))
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: .http(statusCode: 200), steps: [.chunk(fixtureData)]), for: URLRequest(url: url))
         let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [RedactingURLProtocol.self]
         return OpenAIProvider(credentialReader: FixtureCredentialReader(value: "sk-openai-equivalence"), baseRequest: registration.request, httpClient: StreamingHTTPClient(session: URLSession(configuration: configuration)))
     }
@@ -325,7 +329,8 @@ struct GeminiProviderContractTests {
     private func makeOpenRouterProvider(fixture: String) async throws -> OpenRouterProvider {
         let url = try #require(URL(string: "https://fixture.invalid/api/v1/chat/completions"))
         let fixtureURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("RPGPlayer/Fixtures/Providers/OpenRouter").appendingPathComponent(fixture)
-        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: .http(statusCode: 200), steps: [.chunk(try Data(contentsOf: fixtureURL))]), for: URLRequest(url: url))
+        let fixtureData = try Data(contentsOf: fixtureURL)
+        let registration = await RedactingURLProtocol.register(scenario: RedactingURLProtocol.Scenario(response: .http(statusCode: 200), steps: [.chunk(fixtureData)]), for: URLRequest(url: url))
         let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [RedactingURLProtocol.self]
         return OpenRouterProvider(credentialReader: FixtureCredentialReader(value: "sk-router-equivalence"), baseRequest: registration.request, httpClient: StreamingHTTPClient(session: URLSession(configuration: configuration)))
     }

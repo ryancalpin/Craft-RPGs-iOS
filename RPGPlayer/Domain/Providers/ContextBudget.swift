@@ -80,7 +80,7 @@ public struct ContextBudget: Codable, Equatable, Sendable {
     }
 
     private static func encodedItem(_ item: ContextSection.Item) throws -> Data {
-        var encoder = JSONEncoder()
+        let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(item)
     }

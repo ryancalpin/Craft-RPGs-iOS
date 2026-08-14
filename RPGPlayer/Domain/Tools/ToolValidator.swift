@@ -119,7 +119,7 @@ public struct ToolValidator: Sendable {
                 guard let validated = try? validatedSearchRecord(record, in: context) else {
                     return nil
                 }
-                let fieldText = validated.fields.keys.sorted().compactMap { fieldID in
+                let fieldText = validated.fields.keys.sorted().compactMap { fieldID -> String? in
                     guard case .string(let value) = validated.fields[fieldID] else { return nil }
                     return deterministicLowercased(value)
                 }
@@ -231,7 +231,7 @@ public struct ToolValidator: Sendable {
 
         case .attachAsset:
             let assetID = try identifier(arguments.values["assetID"])
-            try assetReference(in: context, id: assetID)
+            _ = try assetReference(in: context, id: assetID)
             let targetID = try identifier(arguments.values["targetRecordID"])
             let target = try record(in: context, id: targetID)
             let fieldID = try identifier(arguments.values["fieldID"])
@@ -413,7 +413,11 @@ public struct ToolValidator: Sendable {
               let data = encodedFields.data(using: .utf8) else {
             throw ToolValidationError.malformedArguments
         }
-        try preflightJSON(data)
+        do {
+            try preflightJSON(data)
+        } catch let error as ToolValidationError {
+            throw error
+        }
         guard let decoded = try? JSONDecoder().decode(JSONValue.self, from: data) else {
             throw ToolValidationError.malformedArguments
         }
@@ -887,7 +891,7 @@ public struct ToolValidator: Sendable {
             }
             return .object(result)
         case .number(let value):
-            return value.isFinite ? value : nil
+            return value.isFinite ? .number(value) : nil
         default:
             return value
         }
@@ -1178,7 +1182,7 @@ public struct ToolValidator: Sendable {
                   }) else {
                 throw ToolValidationError.invalidFieldValue
             }
-            let strings = values.compactMap { value in
+            let strings = values.compactMap { value -> String? in
                 guard case .string(let string) = value else { return nil }
                 return string
             }

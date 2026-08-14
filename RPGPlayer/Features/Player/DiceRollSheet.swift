@@ -187,7 +187,7 @@ struct DiceRollSheet: View {
     }
 }
 
-private enum DiceRollPreviewFixtures {
+enum DiceRollPreviewFixtures {
     static let request = RollRequestedPayload(
         rollID: UUID(uuidString: "00000000-0000-4000-8000-000000000901")!,
         expression: "2d20+3",

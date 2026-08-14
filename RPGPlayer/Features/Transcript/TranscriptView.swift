@@ -99,8 +99,8 @@ struct TranscriptView: View {
     @ViewBuilder
     private var transcriptBackground: some View {
         PlayerSemanticSurface(
-            shape: RoundedRectangle(cornerRadius: 24, style: .continuous),
-            style: .material(panelOverlayOpacity: 0.50)
+            shape: RoundedRectangle(cornerRadius: PlayerTheme.cardRadius, style: .continuous),
+            style: .material(panelOverlayOpacity: 0.54)
         )
     }
 }
@@ -159,10 +159,13 @@ private struct TranscriptMessageView: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        Text("Actions")
+                        Image(systemName: "sparkles")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(PlayerTheme.accent)
+                        Text("Turn details")
                         Image(systemName: actionsExpanded ? "chevron.down" : "chevron.right")
                     }
-                    .font(.body)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(PlayerTheme.secondaryText)
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
@@ -178,13 +181,13 @@ private struct TranscriptMessageView: View {
                             : "\(message.actionCount) actions recorded for this turn."
                     )
                         .font(.subheadline)
-                        .foregroundStyle(PlayerTheme.secondaryText)
+                        .foregroundStyle(PlayerTheme.tertiaryText)
                         .padding(.bottom, 16)
                         .transition(.opacity)
                 }
 
                 Text(message.finalQuestion)
-                    .font(.title3)
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
                     .foregroundStyle(PlayerTheme.primaryText)
                     .lineSpacing(5)
                     .fixedSize(horizontal: false, vertical: true)
@@ -235,10 +238,10 @@ private struct TranscriptDialogueBlock: View {
         .padding(14)
         .background {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.12))
+                .fill(Color.black.opacity(0.18))
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(PlayerTheme.panelStroke, lineWidth: 1)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
                 }
         }
         .accessibilityElement(children: .combine)

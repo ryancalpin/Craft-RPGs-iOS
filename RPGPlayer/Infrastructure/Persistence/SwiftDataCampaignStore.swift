@@ -47,7 +47,7 @@ public actor SwiftDataCampaignStore: CampaignStore {
     public func appendRollResolution(
         batch: [CampaignEvent],
         expectedSequence: Int64
-    ) throws -> [CampaignEvent] {
+    ) async throws -> [CampaignEvent] {
         try appendInternal(
             batch: batch,
             assets: [],

@@ -6,11 +6,13 @@ public struct NetworkDiagnosticRedactor: Sendable {
         "authorization",
         "proxy-authorization",
         "x-api-key",
-        "x-goog-api-key"
+        "x-goog-api-key",
+        "xi-api-key"
     ]
     private static let providerTokenPatterns = [
         #"(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"#,
-        #"(?<![A-Za-z0-9_-])AIza[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"#
+        #"(?<![A-Za-z0-9_-])AIza[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"#,
+        #"(?<![A-Za-z0-9_-])sk_[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"#
     ]
 
     public init() {}

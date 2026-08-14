@@ -9,6 +9,18 @@ struct CampaignLibraryItem: Identifiable, Equatable, Sendable {
     var id: UUID { summary.campaignID }
 }
 
+private enum CampaignLibrarySheet: Identifiable {
+    case newCampaign
+    case campaignImport
+
+    var id: String {
+        switch self {
+        case .newCampaign: "new-campaign"
+        case .campaignImport: "campaign-import"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class CampaignLibraryModel {
@@ -55,12 +67,14 @@ final class CampaignLibraryModel {
 
 @MainActor
 struct CampaignLibraryView: View {
-    @State private var presentedSheet: ImportSheetDestination?
+    @State private var presentedSheet: CampaignLibrarySheet?
+    @State private var createdCampaignID: UUID?
     @State private var isRecoveryImporterPresented = false
     @State private var isRestoring = false
     @State private var recoveryErrorMessage: String?
 
     let model: CampaignLibraryModel
+    let campaignCreator: CampaignCreator
     let importCoordinator: ImportCoordinator
     let recoveryBundleReader: RecoveryBundleReader
     let openProviderSettings: @MainActor () -> Void
@@ -68,7 +82,7 @@ struct CampaignLibraryView: View {
 
     var body: some View {
         List {
-            Section("Campaigns") {
+            Section {
                 if model.isLoading, model.campaigns.isEmpty {
                     HStack {
                         Spacer()
@@ -80,10 +94,10 @@ struct CampaignLibraryView: View {
                     .listRowBackground(PlayerTheme.opaquePanel)
                 } else if model.campaigns.isEmpty {
                     ContentUnavailableView(
-                        "No Campaigns",
-                        systemImage: "books.vertical",
+                        "Your worlds are waiting",
+                        systemImage: "sparkles",
                         description: Text(
-                            "Import a CDF v2 project or restore a recovery bundle to begin."
+                            "Start a new campaign, import a CDF v2 project, or restore a recovery bundle."
                         )
                     )
                     .foregroundStyle(PlayerTheme.secondaryText)
@@ -94,20 +108,30 @@ struct CampaignLibraryView: View {
                         Button {
                             openCampaign(campaign.id)
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(campaign.summary.title)
-                                    .font(.headline)
-                                    .foregroundStyle(PlayerTheme.primaryText)
-                                    .accessibilityIdentifier(
-                                        "campaignRowTitle-\(campaign.id.uuidString.lowercased())"
-                                    )
-                                if let scene = campaign.currentSceneTitle,
-                                   scene.isEmpty == false {
-                                    Text(scene)
-                                        .font(.subheadline)
-                                        .foregroundStyle(PlayerTheme.secondaryText)
+                            HStack(spacing: 14) {
+                                CampaignGlyph()
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(campaign.summary.title)
+                                        .font(.system(.headline, design: .rounded).weight(.bold))
+                                        .foregroundStyle(PlayerTheme.primaryText)
+                                        .accessibilityIdentifier(
+                                            "campaignRowTitle-\(campaign.id.uuidString.lowercased())"
+                                        )
+                                    if let scene = campaign.currentSceneTitle,
+                                       scene.isEmpty == false {
+                                        Label(scene, systemImage: "location.north.line")
+                                            .font(.caption)
+                                            .foregroundStyle(PlayerTheme.secondaryText)
+                                    }
                                 }
+
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(PlayerTheme.tertiaryText)
                             }
+                            .padding(.vertical, 8)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                         }
@@ -120,20 +144,40 @@ struct CampaignLibraryView: View {
                 }
             }
 
-            Section("Add Campaign") {
+            Section {
+                Button {
+                    presentedSheet = .newCampaign
+                } label: {
+                    LibraryActionLabel(
+                        title: "New campaign",
+                        detail: "Start a story from a name and premise",
+                        systemName: "plus.circle.fill",
+                        tint: PlayerTheme.accentCool
+                    )
+                }
+                .accessibilityIdentifier("newCampaignButton")
+
                 Button {
                     presentedSheet = .campaignImport
                 } label: {
-                    Label("Import campaign", systemImage: "plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    LibraryActionLabel(
+                        title: "Import a campaign",
+                        detail: "Bring in a CDF v2 world or project",
+                        systemName: "arrow.down.circle.fill",
+                        tint: PlayerTheme.accent
+                    )
                 }
                 .accessibilityIdentifier("importCampaignButton")
 
                 Button {
                     isRecoveryImporterPresented = true
                 } label: {
-                    Label("Restore recovery bundle", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    LibraryActionLabel(
+                        title: "Restore a recovery bundle",
+                        detail: "Continue from a saved campaign archive",
+                        systemName: "arrow.counterclockwise.circle.fill",
+                        tint: PlayerTheme.accentCool
+                    )
                 }
                 .disabled(isRestoring)
                 .accessibilityIdentifier("restoreCampaignButton")
@@ -151,7 +195,8 @@ struct CampaignLibraryView: View {
         .background(PlayerTheme.canvas)
         .foregroundStyle(PlayerTheme.primaryText)
         .tint(PlayerTheme.accent)
-        .navigationTitle("Campaigns")
+        .navigationTitle("Campaign library")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: openProviderSettings) {
@@ -170,9 +215,18 @@ struct CampaignLibraryView: View {
                 .accessibilityIdentifier("campaignLibraryView")
                 .allowsHitTesting(false)
         }
-        .sheet(item: $presentedSheet) { _ in
-            ImportFlowSheet(coordinator: importCoordinator)
+        .sheet(item: $presentedSheet) { destination in
+            switch destination {
+            case .newCampaign:
+                NewCampaignSheet(
+                    creator: campaignCreator,
+                    onCreated: { createdCampaignID = $0 }
+                )
                 .presentationSizing(.form)
+            case .campaignImport:
+                ImportFlowSheet(coordinator: importCoordinator)
+                    .presentationSizing(.form)
+            }
         }
         .fileImporter(
             isPresented: $isRecoveryImporterPresented,
@@ -183,6 +237,14 @@ struct CampaignLibraryView: View {
         .onChange(of: importCoordinator.committedCampaignID) { _, campaignID in
             guard let campaignID else { return }
             presentedSheet = nil
+            Task { @MainActor in
+                await model.refresh()
+                openCampaign(campaignID)
+            }
+        }
+        .onChange(of: createdCampaignID) { _, campaignID in
+            guard let campaignID else { return }
+            createdCampaignID = nil
             Task { @MainActor in
                 await model.refresh()
                 openCampaign(campaignID)
@@ -236,9 +298,59 @@ struct CampaignLibraryView: View {
     }
 }
 
+private struct CampaignGlyph: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(PlayerTheme.accentGradient)
+            Image(systemName: "lamp.desk.fill")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(PlayerTheme.canvas)
+        }
+        .frame(width: 52, height: 52)
+        .shadow(color: PlayerTheme.accent.opacity(0.18), radius: 10, y: 5)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct LibraryActionLabel: View {
+    let title: String
+    let detail: String
+    let systemName: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemName)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(tint)
+                .frame(width: 42, height: 42)
+                .background {
+                    Circle().fill(tint.opacity(0.14))
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(.body, design: .rounded).weight(.bold))
+                    .foregroundStyle(PlayerTheme.primaryText)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(PlayerTheme.tertiaryText)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(PlayerTheme.tertiaryText)
+        }
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 @MainActor
 struct CampaignPlayerHost: View {
     @State private var model: PlayerSessionModel
+    @State private var turnStreaming: CampaignTurnStreaming?
     @State private var errorMessage: String?
 
     private let graph: AppDependencyGraph
@@ -259,6 +371,7 @@ struct CampaignPlayerHost: View {
         _model = State(
             initialValue: graph.makePlayerSessionModel(campaignID: campaignID)
         )
+        _turnStreaming = State(initialValue: nil)
     }
 
     var body: some View {
@@ -268,8 +381,13 @@ struct CampaignPlayerHost: View {
                     model: model,
                     campaignDataContext: graph.campaignDataContext(
                         campaignID: campaignID,
-                        title: state.campaignTitle
+                        title: state.campaignTitle,
+                        project: model.project
                     ),
+                    turnStreaming: turnStreaming,
+                    turnActivityCoordinator: graph.turnActivityCoordinator,
+                    turnBackgroundExecutionController: graph.turnBackgroundExecutionController,
+                    narrationPlaybackCoordinator: graph.narrationPlaybackCoordinator,
                     exitCampaign: exitCampaign,
                     campaignDeleted: campaignDeleted
                 )
@@ -292,6 +410,7 @@ struct CampaignPlayerHost: View {
             guard model.state == nil, errorMessage == nil else { return }
             do {
                 try await model.load()
+                turnStreaming = graph.makeCampaignTurnStreaming(model: model)
             } catch {
                 errorMessage = "Its imported project or event history could not be read."
             }
